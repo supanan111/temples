@@ -11,10 +11,19 @@
 function create_notification(PDO $pdo, int $user_id, string $type, int $ref_id, string $ref_table, string $message): void
 {
     try {
-        $stmt = $pdo->prepare(
-            "INSERT INTO notifications (user_id, type, ref_id, ref_table, message) VALUES (?, ?, ?, ?, ?)"
-        );
-        $stmt->execute([$user_id, $type, $ref_id, $ref_table, $message]);
+        $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+        if ($driver === 'pgsql') {
+            $next_id = (int)$pdo->query("SELECT COALESCE(MAX(id), 0) + 1 FROM notifications")->fetchColumn();
+            $stmt = $pdo->prepare(
+                "INSERT INTO notifications (id, user_id, type, ref_id, ref_table, message) VALUES (?, ?, ?, ?, ?, ?)"
+            );
+            $stmt->execute([$next_id, $user_id, $type, $ref_id, $ref_table, $message]);
+        } else {
+            $stmt = $pdo->prepare(
+                "INSERT INTO notifications (user_id, type, ref_id, ref_table, message) VALUES (?, ?, ?, ?, ?)"
+            );
+            $stmt->execute([$user_id, $type, $ref_id, $ref_table, $message]);
+        }
     } catch (PDOException $e) {
         // ไม่ให้ error notification ทำลาย flow หลัก
         error_log("Notification insert failed: " . $e->getMessage());

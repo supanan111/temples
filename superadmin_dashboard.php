@@ -261,7 +261,11 @@ try {
 function toggleNotifDropdown() {
     const dd = document.getElementById('notifDropdown');
     dd.classList.toggle('show');
-    if (dd.classList.contains('show')) loadNotifications();
+    if (dd.classList.contains('show')) {
+        updateBadge(0);
+        fetch('get_notifications.php?action=mark_all_read').catch(() => {});
+        loadNotifications();
+    }
 }
 document.addEventListener('click', function(e) {
     if (!e.target.closest('#bellBtn') && !e.target.closest('#notifDropdown')) {
@@ -273,35 +277,72 @@ function loadNotifications() {
         .then(r => r.json())
         .then(data => {
             const list = document.getElementById('notifList');
-            if (!data.notifications || data.notifications.length === 0) {
+            const items = data.notifications || data.items || [];
+            const cnt = data.unread_count !== undefined ? data.unread_count : (data.count || 0);
+
+            if (items.length === 0) {
                 list.innerHTML = '<div style="padding:20px;text-align:center;color:#857B74;font-size:13px;">ไม่มีการแจ้งเตือน</div>';
+                updateBadge(0);
                 return;
             }
-            list.innerHTML = data.notifications.map(n => `
+            list.innerHTML = items.map(n => `
                 <div class="notif-item ${n.is_read ? '' : 'unread'}" onclick="markRead(${n.id})">
                     <div>${n.message}</div>
                     <div class="notif-time">${n.time_ago}</div>
                 </div>`).join('');
-            updateBadge(data.unread_count || 0);
+            updateBadge(cnt);
         }).catch(() => {
             document.getElementById('notifList').innerHTML = '<div style="padding:20px;text-align:center;color:#857B74;font-size:13px;">ไม่สามารถโหลดได้</div>';
         });
 }
 function markRead(id) {
+    updateBadge(0);
     fetch('get_notifications.php?action=mark_read&id=' + id).then(() => loadNotifications());
 }
 function markAllRead() {
+    updateBadge(0);
+    document.querySelectorAll('.notif-item.unread').forEach(el => el.classList.remove('unread'));
     fetch('get_notifications.php?action=mark_all_read').then(() => { loadNotifications(); });
 }
 function updateBadge(cnt) {
-    const bell = document.getElementById('bell-badge');
-    const sidebar = document.getElementById('sidebar-badge');
+    let bell = document.getElementById('bell-badge');
+    let sidebar = document.getElementById('sidebar-badge');
     if (cnt > 0) {
-        if (bell) bell.textContent = cnt;
-        if (sidebar) sidebar.textContent = cnt;
+        if (!bell) {
+            const btn = document.getElementById('bellBtn');
+            if (btn) {
+                bell = document.createElement('span');
+                bell.className = 'bell-badge';
+                bell.id = 'bell-badge';
+                btn.appendChild(bell);
+            }
+        }
+        if (!sidebar) {
+            const link = document.querySelector('.sidebar-menu a.active') || document.querySelector('.sidebar-menu a[href*="manage_bookings"]');
+            if (link) {
+                sidebar = document.createElement('span');
+                sidebar.className = 'notif-badge';
+                sidebar.id = 'sidebar-badge';
+                link.appendChild(sidebar);
+            }
+        }
+        if (bell) {
+            bell.textContent = cnt;
+            bell.style.display = 'flex';
+        }
+        if (sidebar) {
+            sidebar.textContent = cnt;
+            sidebar.style.display = 'inline-block';
+        }
     } else {
-        if (bell) bell.remove();
-        if (sidebar) sidebar.remove();
+        if (bell) {
+            bell.style.display = 'none';
+            bell.textContent = '0';
+        }
+        if (sidebar) {
+            sidebar.style.display = 'none';
+            sidebar.textContent = '0';
+        }
     }
 }
 setInterval(() => {

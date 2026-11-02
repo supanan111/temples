@@ -14,6 +14,20 @@ $has_user_location = $user_lat !== false && $user_lng !== false
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
 try {
+    $search_condition = "";
+    $search_params = [];
+    if (!empty($search)) {
+        $q = '%' . $search . '%';
+        $search_condition = " WHERE (name LIKE :q1 OR province LIKE :q2 OR district LIKE :q3
+                   OR description LIKE :q4 OR tags LIKE :q5
+                   OR id IN (SELECT temple_id FROM bookable_items WHERE item_name LIKE :q6 AND is_active='yes')
+                   OR id IN (SELECT temple_id FROM events WHERE event_name LIKE :q7))";
+        $search_params = [
+            ':q1' => $q, ':q2' => $q, ':q3' => $q,
+            ':q4' => $q, ':q5' => $q, ':q6' => $q, ':q7' => $q,
+        ];
+    }
+
     if ($has_user_location) {
         $sql = "SELECT *, 
                 CASE
@@ -29,27 +43,22 @@ try {
                     ELSE NULL
                 END AS distance
                 FROM temples
+                $search_condition
                 ORDER BY distance IS NULL ASC, distance ASC";
         
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([
+        $stmt->execute(array_merge([
             ':user_lat_1' => $user_lat,
             ':user_lat_2' => $user_lat,
             ':user_lng' => $user_lng,
-        ]);
+        ], $search_params));
     } else {
         if (!empty($search)) {
-            $q = '%' . $search . '%';
             $sql = "SELECT *, NULL as distance FROM temples
-                    WHERE name LIKE :q1 OR province LIKE :q2 OR district LIKE :q3
-                       OR description LIKE :q4 OR tags LIKE :q5
-                       OR id IN (SELECT temple_id FROM bookable_items WHERE item_name LIKE :q6 AND is_active='yes')
-                       OR id IN (SELECT temple_id FROM events WHERE event_name LIKE :q7)";
+                    $search_condition
+                    ORDER BY id DESC";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute([
-                ':q1' => $q, ':q2' => $q, ':q3' => $q,
-                ':q4' => $q, ':q5' => $q, ':q6' => $q, ':q7' => $q,
-            ]);
+            $stmt->execute($search_params);
         } else {
             $sql = "SELECT *, NULL as distance FROM temples ORDER BY id DESC";
             $stmt = $pdo->query($sql);
@@ -57,6 +66,28 @@ try {
     }
 
     $temples_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // ดึงกิจกรรม (events) ของแต่ละวัด เพื่อให้ระบบค้นหากิจกรรมและแสดงชื่อกิจกรรมได้
+    $events_by_temple = [];
+    try {
+        $stmt_ev = $pdo->query("SELECT temple_id, event_name, event_date FROM events ORDER BY CASE WHEN event_date >= CURRENT_DATE THEN 0 ELSE 1 END, event_date ASC");
+        while ($ev_row = $stmt_ev->fetch(PDO::FETCH_ASSOC)) {
+            $tid = (int)$ev_row['temple_id'];
+            if (!isset($events_by_temple[$tid])) $events_by_temple[$tid] = [];
+            $events_by_temple[$tid][] = (string)$ev_row['event_name'];
+        }
+    } catch (Exception $e) {}
+
+    // ดึงบริการ/สถานที่ (bookable_items) ของแต่ละวัด เพื่อให้ค้นหาบริการได้
+    $items_by_temple = [];
+    try {
+        $stmt_it = $pdo->query("SELECT temple_id, item_name FROM bookable_items WHERE is_active = 'yes'");
+        while ($it_row = $stmt_it->fetch(PDO::FETCH_ASSOC)) {
+            $tid = (int)$it_row['temple_id'];
+            if (!isset($items_by_temple[$tid])) $items_by_temple[$tid] = [];
+            $items_by_temple[$tid][] = (string)$it_row['item_name'];
+        }
+    } catch (Exception $e) {}
 
     $formatted_temples = [];
     foreach ($temples_data as $t) {
@@ -69,6 +100,9 @@ try {
 
         $image_path = !empty($t['image']) ? $t['image'] : 'assets/images/download.jpg';
 
+        $t_events = $events_by_temple[(int)$t['id']] ?? [];
+        $t_items  = $items_by_temple[(int)$t['id']] ?? [];
+
         $formatted_temples[] = [
             'id' => (int)$t['id'],
             'name' => (string)($t['name'] ?? ''),
@@ -76,6 +110,9 @@ try {
             'district' => (string)($t['district'] ?? ''),
             'description' => (string)($t['description'] ?? ''),
             'tags' => (string)($t['tags'] ?? ''),
+            'events' => implode(' ', $t_events),
+            'latest_event' => !empty($t_events) ? $t_events[0] : '',
+            'items' => implode(' ', $t_items),
             'image' => $image_path,
             'badge' => $badge
         ];
@@ -467,7 +504,7 @@ $json_temples_safe = htmlspecialchars(json_encode($formatted_temples, JSON_UNESC
             <input type="hidden" name="lat" value="<?php echo htmlspecialchars($user_lat, ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="lng" value="<?php echo htmlspecialchars($user_lng, ENT_QUOTES, 'UTF-8'); ?>">
           <?php endif; ?>
-          <input type="search" name="search" x-model.debounce.150ms="searchQuery" @input="$dispatch('temple-search-changed')" placeholder="พิมพ์ชื่อวัดหรือบางส่วนของชื่อวัด..." value="<?php echo htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>"
+          <input type="search" name="search" x-model.debounce.150ms="searchQuery" @input="$dispatch('temple-search-changed')" placeholder="ค้นหาชื่อวัด, จังหวัด, กิจกรรม, หรือบริการ..." value="<?php echo htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>"
             class="w-full min-w-0 bg-transparent pl-3 sm:pl-4 pr-2 py-2 text-gray-800 focus:outline-none text-xs placeholder-gray-400">
           <button type="submit" class="shrink-0 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs px-4 sm:px-5 py-2.5 rounded-full flex items-center gap-1.5 transition whitespace-nowrap">
             <i class="fa-solid fa-magnifying-glass text-[11px]"></i> ค้นหา
@@ -490,7 +527,7 @@ $json_temples_safe = htmlspecialchars(json_encode($formatted_temples, JSON_UNESC
       const query = (this.searchQuery || '').trim().toLocaleLowerCase();
       if (!query) return popularTemples;
       return popularTemples.filter((temple) =>
-        [temple.name, temple.province, temple.district, temple.tags, temple.description]
+        [temple.name, temple.province, temple.district, temple.tags, temple.description, temple.events, temple.items]
           .some((value) => (value || '').toLocaleLowerCase().includes(query))
       );
     },
@@ -567,6 +604,12 @@ $json_temples_safe = htmlspecialchars(json_encode($formatted_temples, JSON_UNESC
                   </span>
                   <h3 class="font-bold text-gray-800 text-sm mb-1 line-clamp-1" x-text="temple.name"></h3>
                   <span class="text-[11px] text-gray-500 block line-clamp-1" x-text="temple.district"></span>
+                  <template x-if="temple.latest_event">
+                    <div class="mt-2 inline-flex items-center gap-1 text-[10px] text-amber-800 bg-amber-50 border border-amber-200/70 px-2 py-0.5 rounded-md max-w-full">
+                      <i class="fa-solid fa-calendar-day text-amber-600 text-[9px] shrink-0"></i>
+                      <span class="truncate" x-text="'กิจกรรม: ' + temple.latest_event"></span>
+                    </div>
+                  </template>
                 </div>
               </div>
 
@@ -589,10 +632,9 @@ $json_temples_safe = htmlspecialchars(json_encode($formatted_temples, JSON_UNESC
 
       <div x-cloak x-show="filteredTemples.length === 0" class="mx-auto my-8 max-w-lg rounded-2xl border border-amber-100 bg-white px-6 py-10 text-center shadow-sm">
         <i class="fa-solid fa-magnifying-glass mb-3 text-2xl text-amber-600" aria-hidden="true"></i>
-        <p class="font-semibold text-gray-800">ไม่พบวัดที่ตรงกับคำค้นหา</p>
-        <p class="mt-1 text-sm text-gray-500">ลองพิมพ์ชื่อวัดหรือบางส่วนของชื่ออีกครั้ง</p>
-
-</div>
+        <p class="font-semibold text-gray-800">ไม่พบวัดหรือกิจกรรมที่ตรงกับคำค้นหา</p>
+        <p class="mt-1 text-sm text-gray-500">ลองพิมพ์ชื่อวัด จังหวัด กิจกรรม หรือบริการอีกครั้ง</p>
+      </div>
 
       <div class="flex justify-center gap-1.5 mt-2">
         <template x-for="(temple, index) in filteredTemples" :key="'dot-' + temple.id">
