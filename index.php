@@ -6,6 +6,17 @@ error_reporting(E_ALL);
 
 require_once 'db_config.php';
 
+// นำเข้าข้อมูลตัวอย่างให้อัตโนมัติ หากยังไม่มีข้อมูลเพียงพอสำหรับทุกวัด
+try {
+    $item_count = (int)$pdo->query("SELECT COUNT(*) FROM bookable_items")->fetchColumn();
+    if ($item_count < 50 && file_exists(__DIR__ . '/seed_all_temples.php')) {
+        require_once __DIR__ . '/seed_all_temples.php';
+        if (function_exists('run_temple_seeder')) {
+            run_temple_seeder($pdo, true);
+        }
+    }
+} catch (Exception $e) {}
+
 $user_lat = isset($_GET['lat']) && is_string($_GET['lat']) ? filter_var($_GET['lat'], FILTER_VALIDATE_FLOAT) : false;
 $user_lng = isset($_GET['lng']) && is_string($_GET['lng']) ? filter_var($_GET['lng'], FILTER_VALIDATE_FLOAT) : false;
 $has_user_location = $user_lat !== false && $user_lng !== false

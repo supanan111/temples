@@ -324,3 +324,4 @@ if (isset($pdo) && function_exists('count_unread_notifications')) {
     }, 60000);
 })();
 </script>
+
