@@ -37,3 +37,4 @@ RUN echo "upload_max_filesize = 10M" > /usr/local/etc/php/conf.d/uploads.ini \
 EXPOSE 80
 
 CMD ["apache2-foreground"]
+

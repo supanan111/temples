@@ -85,3 +85,4 @@ Vercel เป็น Serverless Platform ทำงานผ่าน runtime `ver
     ├── schema_postgres_neon.sql # สกีมาสำหรับ Neon (PostgreSQL) ครบทุกตาราง
     └── migration_v2.sql         # สคริปต์ Migration v2.0
 ```
+
