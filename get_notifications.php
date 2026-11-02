@@ -5,7 +5,7 @@ require_once 'db_config.php';
 header('Content-Type: application/json; charset=utf-8');
 
 if (!isset($_SESSION['user_id'])) {
-    echo json_encode(['error' => 'unauthorized', 'count' => 0, 'items' => []]);
+    echo json_encode(['error' => 'unauthorized', 'count' => 0, 'unread_count' => 0, 'items' => [], 'notifications' => []]);
     exit();
 }
 
@@ -54,11 +54,13 @@ try {
     }
 
     echo json_encode([
-        'count' => $unread_count,
-        'items' => $items,
+        'count'         => $unread_count,
+        'unread_count'  => $unread_count,
+        'items'         => $items,
+        'notifications' => $items,
     ], JSON_UNESCAPED_UNICODE);
 
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'db_error', 'count' => 0, 'items' => []]);
+    echo json_encode(['error' => 'db_error', 'count' => 0, 'unread_count' => 0, 'items' => [], 'notifications' => []]);
 }
