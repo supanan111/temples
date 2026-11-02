@@ -60,6 +60,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             die("ไม่พบข้อมูลบริการหรือวัดที่เลือก กรุณากลับไปทำรายการใหม่");
         }
 
+        // ซิงก์ Sequence อัตโนมัติสำหรับ PostgreSQL ก่อนเริ่ม Transaction เพื่อไม่ให้ ID ชน
+        if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql') {
+            try {
+                $pdo->exec("SELECT setval(pg_get_serial_sequence('bookings', 'id'), COALESCE((SELECT MAX(id) FROM bookings), 1))");
+            } catch (Throwable $ignoreSeq) {}
+        }
+
         // เริ่มต้น Transaction เพื่อความปลอดภัยของข้อมูล
         $pdo->beginTransaction();
 
@@ -121,79 +128,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     } catch (PDOException $e) {
         // ถ้ามีอะไรผิดพลาด ให้ยกเลิกการบันทึก (Rollback) ทันที
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-
-        // กรณี PostgreSQL Sequence ไม่ตรงกับ MAX(id) (หลังนำเข้าข้อมูล seed เก่า) ให้ Auto-Reset แล้วลองบันทึกใหม่
-        $is_pgsql = ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql');
-        $msg = $e->getMessage();
-        if ($is_pgsql && (strpos($msg, 'duplicate key') !== false || strpos($msg, 'bookings_pkey') !== false)) {
-            try {
-                $pdo->exec("SELECT setval(pg_get_serial_sequence('bookings', 'id'), COALESCE((SELECT MAX(id) FROM bookings), 1))");
-                $pdo->beginTransaction();
-
-                foreach ($data_array as $val) {
-                    if ($selection_type == 'stalls') {
-                        $stmt = $pdo->prepare("
-                            INSERT INTO bookings (temple_id, item_id, user_id, booking_date, stall_no, qty_booked, status, contact_name, contact_phone) 
-                            VALUES (:temple_id, :item_id, :user_id, CURRENT_DATE, :stall_no, :qty_booked, :status, :contact_name, :contact_phone)
-                        ");
-                        $stmt->execute([
-                            ':temple_id' => $temple_id,
-                            ':item_id' => $item_id,
-                            ':user_id' => $_SESSION['user_id'],
-                            ':stall_no' => $val,
-                            ':qty_booked' => 1,
-                            ':status' => $status,
-                            ':contact_name' => $contact_name,
-                            ':contact_phone' => $contact_phone
-                        ]);
-                    } else {
-                        $stmt = $pdo->prepare("
-                            INSERT INTO bookings (temple_id, item_id, user_id, booking_date, qty_booked, status, contact_name, contact_phone) 
-                            VALUES (:temple_id, :item_id, :user_id, :booking_date, :qty_booked, :status, :contact_name, :contact_phone)
-                        ");
-                        $stmt->execute([
-                            ':temple_id' => $temple_id,
-                            ':item_id' => $item_id,
-                            ':user_id' => $_SESSION['user_id'],
-                            ':booking_date' => $val,
-                            ':qty_booked' => $qty,
-                            ':status' => $status,
-                            ':contact_name' => $contact_name,
-                            ':contact_phone' => $contact_phone
-                        ]);
-                    }
-                }
-
-                $pdo->commit();
-
-                if (file_exists('notify.php')) {
-                    require_once 'notify.php';
-                    $item_title = $booking_details['item_name'] ?? 'บริการ';
-                    $notify_msg = "มีคำขอจองใหม่: {$item_title} โดยคุณ {$contact_name} (เบอร์โทร: {$contact_phone})";
-                    notify_temple_admins($pdo, (int)$temple_id, 'new_booking', (int)$item_id, 'bookings', $notify_msg);
-                    notify_superadmins($pdo, 'new_booking', (int)$item_id, 'bookings', $notify_msg);
-                }
-
-                goto booking_success;
-            } catch (Exception $retryEx) {
-                if ($pdo->inTransaction()) {
-                    $pdo->rollBack();
-                }
-                error_log("Booking retry failed: " . $retryEx->getMessage());
-                http_response_code(500);
-                die("เกิดข้อผิดพลาดในการบันทึกข้อมูล: " . htmlspecialchars($retryEx->getMessage()));
+        try {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
             }
-        }
-
-        error_log("Booking submission failed: " . $msg);
+        } catch (Throwable $t) {}
+        error_log("Booking submission failed: " . $e->getMessage());
         http_response_code(500);
-        die("เกิดข้อผิดพลาดในการบันทึกข้อมูล: " . htmlspecialchars($msg));
+        die("เกิดข้อผิดพลาดในการบันทึกข้อมูล: " . htmlspecialchars($e->getMessage()));
     }
-
-    booking_success:
 } else {
     header("Location: index.php");
     exit();

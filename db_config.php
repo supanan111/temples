@@ -76,6 +76,18 @@ try {
         PDO::ATTR_EMULATE_PREPARES   => false,
     ];
     $pdo = new PDO($dsn, $user, $pass, $options);
+
+    // ซิงก์ Sequence ทั้งหมดของ PostgreSQL อัตโนมัติ เพื่อป้องกัน ID ชนหลังนำเข้าข้อมูล
+    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql') {
+        $sync_tables = ['bookings', 'donations', 'users', 'temples', 'bookable_items', 'events', 'news', 'temple_sections', 'notifications'];
+        foreach ($sync_tables as $stbl) {
+            try {
+                $pdo->exec("SELECT setval(pg_get_serial_sequence('{$stbl}', 'id'), COALESCE((SELECT MAX(id) FROM {$stbl}), 1))");
+            } catch (Throwable $e_seq) {
+                // ข้ามหากตารางยังไม่ได้ถูกสร้าง
+            }
+        }
+    }
 } catch (PDOException $e) {
     error_log("Database connection failed: " . $e->getMessage());
     die("ไม่สามารถเชื่อมต่อฐานข้อมูลได้: " . htmlspecialchars($e->getMessage()));
