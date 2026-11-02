@@ -19,16 +19,16 @@ RUN apt-get update && apt-get install -y \
         calendar \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# เปิดใช้งาน Apache Rewrite Module
-RUN a2enmod rewrite
+# เปิดใช้งาน Apache Rewrite, Headers, Expires, Deflate Modules เพื่อความเร็วและแคชรูปภาพ
+RUN a2enmod rewrite headers expires deflate
 
 # คัดลอกโค้ดโปรเจกต์ทั้งหมดเข้าสู่ DocumentRoot
 COPY . /var/www/html/
 
-# สร้างโฟลเดอร์สำหรับอัปโหลดและกำหนดสิทธิ์ให้ Apache (www-data)
-RUN mkdir -p /var/www/html/uploads/events /var/www/html/donation_uploads \
+# สร้างโฟลเดอร์สำหรับอัปโหลดและแคช พร้อมกำหนดสิทธิ์ให้ Apache (www-data)
+RUN mkdir -p /var/www/html/uploads/events /var/www/html/donation_uploads /var/www/html/cache \
     && chown -R www-data:www-data /var/www/html \
-    && chmod -R 775 /var/www/html/uploads /var/www/html/donation_uploads
+    && chmod -R 775 /var/www/html/uploads /var/www/html/donation_uploads /var/www/html/cache
 
 # กำหนดค่า PHP
 RUN echo "upload_max_filesize = 10M" > /usr/local/etc/php/conf.d/uploads.ini \

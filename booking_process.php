@@ -7,6 +7,8 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
+$user_id = (int)$_SESSION['user_id'];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // รับค่าจากฟอร์ม
     $temple_id = filter_input(INPUT_POST, 'temple_id', FILTER_VALIDATE_INT);

@@ -6,16 +6,24 @@ error_reporting(E_ALL);
 
 require_once 'db_config.php';
 
-// นำเข้าข้อมูลตัวอย่างให้อัตโนมัติ หากยังไม่มีข้อมูลเพียงพอสำหรับทุกวัด
-try {
-    $item_count = (int)$pdo->query("SELECT COUNT(*) FROM bookable_items")->fetchColumn();
-    if ($item_count < 50 && file_exists(__DIR__ . '/seed_all_temples.php')) {
-        require_once __DIR__ . '/seed_all_temples.php';
-        if (function_exists('run_temple_seeder')) {
-            run_temple_seeder($pdo, true);
+// นำเข้าข้อมูลตัวอย่างให้อัตโนมัติ (ตรวจสอบเฉพาะครั้งแรกที่มีการรัน เพื่อไม่ให้หน่วง DB ทุก Request)
+$cache_dir = __DIR__ . '/cache';
+if (!is_dir($cache_dir)) {
+    @mkdir($cache_dir, 0777, true);
+}
+$seed_marker = $cache_dir . '/.seeded';
+if (!file_exists($seed_marker) && file_exists(__DIR__ . '/seed_all_temples.php')) {
+    try {
+        $item_count = (int)$pdo->query("SELECT COUNT(*) FROM bookable_items")->fetchColumn();
+        if ($item_count < 50) {
+            require_once __DIR__ . '/seed_all_temples.php';
+            if (function_exists('run_temple_seeder')) {
+                run_temple_seeder($pdo, true);
+            }
         }
-    }
-} catch (Exception $e) {}
+        @touch($seed_marker);
+    } catch (Exception $e) {}
+}
 
 $user_lat = isset($_GET['lat']) && is_string($_GET['lat']) ? filter_var($_GET['lat'], FILTER_VALIDATE_FLOAT) : false;
 $user_lng = isset($_GET['lng']) && is_string($_GET['lng']) ? filter_var($_GET['lng'], FILTER_VALIDATE_FLOAT) : false;
@@ -24,113 +32,132 @@ $has_user_location = $user_lat !== false && $user_lng !== false
     && $user_lng >= -180 && $user_lng <= 180;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
-try {
-    $search_condition = "";
-    $search_params = [];
-    if (!empty($search)) {
-        $q = '%' . $search . '%';
-        $search_condition = " WHERE (name LIKE :q1 OR province LIKE :q2 OR district LIKE :q3
-                   OR description LIKE :q4 OR tags LIKE :q5
-                   OR id IN (SELECT temple_id FROM bookable_items WHERE item_name LIKE :q6 AND is_active='yes')
-                   OR id IN (SELECT temple_id FROM events WHERE event_name LIKE :q7))";
-        $search_params = [
-            ':q1' => $q, ':q2' => $q, ':q3' => $q,
-            ':q4' => $q, ':q5' => $q, ':q6' => $q, ':q7' => $q,
-        ];
-    }
+// แคชผลลัพธ์หน้าแรก (TTL 5 นาที) เพื่อความเร็วสูงสุด ลด Query จาก DB เมื่อผู้ใช้เข้าชมทั่วไป
+$cache_file = $cache_dir . '/temples_home_cache.json';
+$can_use_cache = (!$has_user_location && empty($search) && file_exists($cache_file) && (time() - filemtime($cache_file) < 300));
+$formatted_temples = null;
 
-    if ($has_user_location) {
-        $sql = "SELECT *, 
-                CASE
-                    WHEN latitude IS NOT NULL AND longitude IS NOT NULL
-                        AND latitude BETWEEN -90 AND 90
-                        AND longitude BETWEEN -180 AND 180
-                        AND NOT (latitude = 0 AND longitude = 0)
-                    THEN 6371 * 2 * ASIN(SQRT(LEAST(1.0, GREATEST(0.0,
-                        POWER(SIN(RADIANS(latitude - :user_lat_1) / 2), 2)
-                        + COS(RADIANS(:user_lat_2)) * COS(RADIANS(latitude))
-                        * POWER(SIN(RADIANS(longitude - :user_lng) / 2), 2)
-                    ))))
-                    ELSE NULL
-                END AS distance
-                FROM temples
-                $search_condition
-                ORDER BY distance IS NULL ASC, distance ASC";
-        
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute(array_merge([
-            ':user_lat_1' => $user_lat,
-            ':user_lat_2' => $user_lat,
-            ':user_lng' => $user_lng,
-        ], $search_params));
-    } else {
+if ($can_use_cache) {
+    $cached_raw = @file_get_contents($cache_file);
+    if (!empty($cached_raw)) {
+        $formatted_temples = json_decode($cached_raw, true);
+    }
+}
+
+if ($formatted_temples === null) {
+    try {
+        $search_condition = "";
+        $search_params = [];
         if (!empty($search)) {
-            $sql = "SELECT *, NULL as distance FROM temples
+            $q = '%' . $search . '%';
+            $search_condition = " WHERE (name LIKE :q1 OR province LIKE :q2 OR district LIKE :q3
+                       OR description LIKE :q4 OR tags LIKE :q5
+                       OR id IN (SELECT temple_id FROM bookable_items WHERE item_name LIKE :q6 AND is_active='yes')
+                       OR id IN (SELECT temple_id FROM events WHERE event_name LIKE :q7))";
+            $search_params = [
+                ':q1' => $q, ':q2' => $q, ':q3' => $q,
+                ':q4' => $q, ':q5' => $q, ':q6' => $q, ':q7' => $q,
+            ];
+        }
+
+        if ($has_user_location) {
+            $sql = "SELECT *, 
+                    CASE
+                        WHEN latitude IS NOT NULL AND longitude IS NOT NULL
+                            AND latitude BETWEEN -90 AND 90
+                            AND longitude BETWEEN -180 AND 180
+                            AND NOT (latitude = 0 AND longitude = 0)
+                        THEN 6371 * 2 * ASIN(SQRT(LEAST(1.0, GREATEST(0.0,
+                            POWER(SIN(RADIANS(latitude - :user_lat_1) / 2), 2)
+                            + COS(RADIANS(:user_lat_2)) * COS(RADIANS(latitude))
+                            * POWER(SIN(RADIANS(longitude - :user_lng) / 2), 2)
+                        ))))
+                        ELSE NULL
+                    END AS distance
+                    FROM temples
                     $search_condition
-                    ORDER BY id DESC";
+                    ORDER BY distance IS NULL ASC, distance ASC";
+            
             $stmt = $pdo->prepare($sql);
-            $stmt->execute($search_params);
+            $stmt->execute(array_merge([
+                ':user_lat_1' => $user_lat,
+                ':user_lat_2' => $user_lat,
+                ':user_lng' => $user_lng,
+            ], $search_params));
         } else {
-            $sql = "SELECT *, NULL as distance FROM temples ORDER BY id DESC";
-            $stmt = $pdo->query($sql);
+            if (!empty($search)) {
+                $sql = "SELECT *, NULL as distance FROM temples
+                        $search_condition
+                        ORDER BY id DESC";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($search_params);
+            } else {
+                $sql = "SELECT *, NULL as distance FROM temples ORDER BY id DESC";
+                $stmt = $pdo->query($sql);
+            }
         }
+
+        $temples_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // ดึงกิจกรรม (events) ของแต่ละวัด เพื่อให้ระบบค้นหากิจกรรมและแสดงชื่อกิจกรรมได้
+        $events_by_temple = [];
+        try {
+            $stmt_ev = $pdo->query("SELECT temple_id, event_name, event_date FROM events ORDER BY CASE WHEN event_date >= CURRENT_DATE THEN 0 ELSE 1 END, event_date ASC");
+            while ($ev_row = $stmt_ev->fetch(PDO::FETCH_ASSOC)) {
+                $tid = (int)$ev_row['temple_id'];
+                if (!isset($events_by_temple[$tid])) $events_by_temple[$tid] = [];
+                $events_by_temple[$tid][] = (string)$ev_row['event_name'];
+            }
+        } catch (Exception $e) {}
+
+        // ดึงบริการ/สถานที่ (bookable_items) ของแต่ละวัด เพื่อให้ค้นหาบริการได้
+        $items_by_temple = [];
+        try {
+            $stmt_it = $pdo->query("SELECT temple_id, item_name FROM bookable_items WHERE is_active = 'yes'");
+            while ($it_row = $stmt_it->fetch(PDO::FETCH_ASSOC)) {
+                $tid = (int)$it_row['temple_id'];
+                if (!isset($items_by_temple[$tid])) $items_by_temple[$tid] = [];
+                $items_by_temple[$tid][] = (string)$it_row['item_name'];
+            }
+        } catch (Exception $e) {}
+
+        $formatted_temples = [];
+        foreach ($temples_data as $t) {
+            $badge = !empty($t['badge']) ? $t['badge'] : 'แนะนำ';
+            if ($has_user_location && $t['distance'] !== null) {
+                $badge = number_format((float)$t['distance'], 1) . " กม.";
+            } elseif ($has_user_location) {
+                $badge = 'ไม่ระบุพิกัด';
+            }
+
+            $image_path = !empty($t['image']) ? $t['image'] : 'assets/images/download.jpg';
+
+            $t_events = $events_by_temple[(int)$t['id']] ?? [];
+            $t_items  = $items_by_temple[(int)$t['id']] ?? [];
+
+            $formatted_temples[] = [
+                'id' => (int)$t['id'],
+                'name' => (string)($t['name'] ?? ''),
+                'province' => (string)($t['province'] ?? $t['district'] ?? 'ไม่ระบุที่อยู่'),
+                'district' => (string)($t['district'] ?? ''),
+                'description' => (string)($t['description'] ?? ''),
+                'tags' => (string)($t['tags'] ?? ''),
+                'events' => implode(' ', $t_events),
+                'latest_event' => !empty($t_events) ? $t_events[0] : '',
+                'items' => implode(' ', $t_items),
+                'image' => $image_path,
+                'badge' => $badge
+            ];
+        }
+
+        // บันทึกแคชสำหรับหน้าแรก
+        if (!$has_user_location && empty($search) && !empty($formatted_temples)) {
+            @file_put_contents($cache_file, json_encode($formatted_temples, JSON_UNESCAPED_UNICODE));
+        }
+
+    } catch (PDOException $e) {
+        die("เกิดข้อผิดพลาดจาก DB: " . $e->getMessage());
     }
-
-    $temples_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // ดึงกิจกรรม (events) ของแต่ละวัด เพื่อให้ระบบค้นหากิจกรรมและแสดงชื่อกิจกรรมได้
-    $events_by_temple = [];
-    try {
-        $stmt_ev = $pdo->query("SELECT temple_id, event_name, event_date FROM events ORDER BY CASE WHEN event_date >= CURRENT_DATE THEN 0 ELSE 1 END, event_date ASC");
-        while ($ev_row = $stmt_ev->fetch(PDO::FETCH_ASSOC)) {
-            $tid = (int)$ev_row['temple_id'];
-            if (!isset($events_by_temple[$tid])) $events_by_temple[$tid] = [];
-            $events_by_temple[$tid][] = (string)$ev_row['event_name'];
-        }
-    } catch (Exception $e) {}
-
-    // ดึงบริการ/สถานที่ (bookable_items) ของแต่ละวัด เพื่อให้ค้นหาบริการได้
-    $items_by_temple = [];
-    try {
-        $stmt_it = $pdo->query("SELECT temple_id, item_name FROM bookable_items WHERE is_active = 'yes'");
-        while ($it_row = $stmt_it->fetch(PDO::FETCH_ASSOC)) {
-            $tid = (int)$it_row['temple_id'];
-            if (!isset($items_by_temple[$tid])) $items_by_temple[$tid] = [];
-            $items_by_temple[$tid][] = (string)$it_row['item_name'];
-        }
-    } catch (Exception $e) {}
-
-    $formatted_temples = [];
-    foreach ($temples_data as $t) {
-        $badge = !empty($t['badge']) ? $t['badge'] : 'แนะนำ';
-        if ($has_user_location && $t['distance'] !== null) {
-            $badge = number_format((float)$t['distance'], 1) . " กม.";
-        } elseif ($has_user_location) {
-            $badge = 'ไม่ระบุพิกัด';
-        }
-
-        $image_path = !empty($t['image']) ? $t['image'] : 'assets/images/download.jpg';
-
-        $t_events = $events_by_temple[(int)$t['id']] ?? [];
-        $t_items  = $items_by_temple[(int)$t['id']] ?? [];
-
-        $formatted_temples[] = [
-            'id' => (int)$t['id'],
-            'name' => (string)($t['name'] ?? ''),
-            'province' => (string)($t['province'] ?? $t['district'] ?? 'ไม่ระบุที่อยู่'),
-            'district' => (string)($t['district'] ?? ''),
-            'description' => (string)($t['description'] ?? ''),
-            'tags' => (string)($t['tags'] ?? ''),
-            'events' => implode(' ', $t_events),
-            'latest_event' => !empty($t_events) ? $t_events[0] : '',
-            'items' => implode(' ', $t_items),
-            'image' => $image_path,
-            'badge' => $badge
-        ];
-    }
-
-} catch (PDOException $e) {
-    die("เกิดข้อผิดพลาดจาก DB: " . $e->getMessage());
 }
 
 // แปลง JSON ให้ปลอดภัย
@@ -608,7 +635,7 @@ $json_temples_safe = htmlspecialchars(json_encode($formatted_temples, JSON_UNESC
               
               <div>
                 <div class="w-full h-40 bg-gray-100 relative overflow-hidden">
-                  <img :src="temple.image" :alt="temple.name" class="w-full h-full object-cover"
+                  <img :src="temple.image" :alt="temple.name" class="w-full h-full object-cover" loading="lazy" decoding="async"
                     onerror="this.onerror=null; this.src='assets/images/download.jpg';">
                   <div class="absolute top-2 left-2">
                     <span class="text-[9px] bg-amber-600 text-white font-bold px-2 py-0.5 rounded-full uppercase" x-text="temple.badge"></span>

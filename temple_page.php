@@ -197,7 +197,7 @@ try {
                     <?php foreach ($news_list as $news): ?>
                         <div class="news-card">
                             <?php if (!empty($news['image']) && file_exists('uploads/' . $news['image'])): ?>
-                                <img src="uploads/<?php echo htmlspecialchars($news['image']); ?>" class="news-img" alt="รูปปกข่าว">
+                                <img src="uploads/<?php echo htmlspecialchars($news['image']); ?>" class="news-img" alt="รูปปกข่าว" loading="lazy" decoding="async">
                             <?php else: ?>
                                 <div class="news-img" style="display:flex; align-items:center; justify-content:center; color:var(--text-muted); opacity: 0.5;">
                                     <i class="fas fa-image fa-2x"></i>
@@ -234,7 +234,7 @@ try {
                                 <span class="m"><?php echo $m; ?></span>
                             </div>
                             <?php if (!empty($evt['event_image'])): ?>
-                                <img src="uploads/<?php echo htmlspecialchars($evt['event_image']); ?>" alt="<?php echo htmlspecialchars($event_name); ?>" class="event-img">
+                                <img src="uploads/<?php echo htmlspecialchars($evt['event_image']); ?>" alt="<?php echo htmlspecialchars($event_name); ?>" class="event-img" loading="lazy" decoding="async">
                             <?php endif; ?>
                             <div class="event-detail" style="flex:1;">
                                 <h4><?php echo htmlspecialchars($event_name); ?></h4>
