@@ -61,7 +61,7 @@ if ($formatted_temples === null) {
         }
 
         if ($has_user_location) {
-            $sql = "SELECT *, 
+            $sql = "SELECT id, name, province, district, address, description, tags, latitude, longitude, image, badge, 
                     CASE
                         WHEN latitude IS NOT NULL AND longitude IS NOT NULL
                             AND latitude BETWEEN -90 AND 90
@@ -86,13 +86,13 @@ if ($formatted_temples === null) {
             ], $search_params));
         } else {
             if (!empty($search)) {
-                $sql = "SELECT *, NULL as distance FROM temples
+                $sql = "SELECT id, name, province, district, address, description, tags, latitude, longitude, image, badge, NULL as distance FROM temples
                         $search_condition
                         ORDER BY id DESC";
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute($search_params);
             } else {
-                $sql = "SELECT *, NULL as distance FROM temples ORDER BY id DESC";
+                $sql = "SELECT id, name, province, district, address, description, tags, latitude, longitude, image, badge, NULL as distance FROM temples ORDER BY id DESC";
                 $stmt = $pdo->query($sql);
             }
         }
@@ -156,7 +156,34 @@ if ($formatted_temples === null) {
         }
 
     } catch (PDOException $e) {
-        die("เกิดข้อผิดพลาดจาก DB: " . $e->getMessage());
+        // หากพบ cached plan error จาก PostgreSQL ให้เคลียร์ plan และดึงข้อมูลใหม่
+        if (str_contains($e->getMessage(), 'cached plan') || $e->getCode() === '0A000') {
+            try {
+                $pdo->exec("DEALLOCATE ALL;");
+                $fallback_stmt = $pdo->query("SELECT id, name, province, district, address, description, tags, latitude, longitude, image, badge, NULL as distance FROM temples ORDER BY id DESC");
+                $fallback_rows = $fallback_stmt->fetchAll(PDO::FETCH_ASSOC);
+                $formatted_temples = [];
+                foreach ($fallback_rows as $t) {
+                    $formatted_temples[] = [
+                        'id' => (int)$t['id'],
+                        'name' => (string)($t['name'] ?? ''),
+                        'province' => (string)($t['province'] ?? $t['district'] ?? 'ไม่ระบุที่อยู่'),
+                        'district' => (string)($t['district'] ?? ''),
+                        'description' => (string)($t['description'] ?? ''),
+                        'tags' => (string)($t['tags'] ?? ''),
+                        'events' => '',
+                        'latest_event' => '',
+                        'items' => '',
+                        'image' => !empty($t['image']) ? $t['image'] : 'assets/images/download.jpg',
+                        'badge' => !empty($t['badge']) ? $t['badge'] : 'แนะนำ'
+                    ];
+                }
+            } catch (Throwable $t2) {
+                die("เกิดข้อผิดพลาดจาก DB: " . $e->getMessage());
+            }
+        } else {
+            die("เกิดข้อผิดพลาดจาก DB: " . $e->getMessage());
+        }
     }
 }
 

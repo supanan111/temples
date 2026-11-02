@@ -73,14 +73,15 @@ try {
     $options = [
         PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES   => false,
+        PDO::ATTR_EMULATE_PREPARES   => true,
     ];
     $pdo = new PDO($dsn, $user, $pass, $options);
 
-    // เคลียร์สถานะ Transaction ค้างสำหรับ PostgreSQL (PgBouncer Pooler) ให้พร้อมทำงานเสมอ
+    // เคลียร์สถานะ Transaction ค้างและล้าง Cached Plans สำหรับ PostgreSQL / PgBouncer
     if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql') {
         try {
             $pdo->exec("ROLLBACK;");
+            $pdo->exec("DEALLOCATE ALL;");
         } catch (Throwable $e) {}
     }
 
