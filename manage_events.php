@@ -45,8 +45,8 @@ $msg_type = '';
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_event'])) {
     $event_name_input = trim($_POST['event_name']);
     $description      = trim($_POST['description'] ?? '');
-    $event_date       = $_POST['event_date'];
-    $event_time       = $_POST['event_time'];
+    $event_date       = trim($_POST['event_date']);
+    $event_time       = !empty($_POST['event_time']) ? trim($_POST['event_time']) : null;
     $event_image_path = null;
 
     // จัดการ upload รูป
@@ -74,14 +74,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_event'])) {
 
     if ($msg_type !== 'error') {
         try {
+            $next_event_id = (int)$pdo->query("SELECT COALESCE(MAX(id), 0) + 1 FROM events")->fetchColumn();
             // ลอง INSERT พร้อม event_image ก่อน
             try {
-                $stmt = $pdo->prepare("INSERT INTO events (temple_id, event_name, description, event_date, event_time, event_image) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$admin_temple_id, $event_name_input, $description, $event_date, $event_time, $event_image_path]);
+                $stmt = $pdo->prepare("INSERT INTO events (id, temple_id, event_name, description, event_date, event_time, event_image) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$next_event_id, $admin_temple_id, $event_name_input, $description, $event_date, $event_time, $event_image_path]);
             } catch (PDOException $e_img) {
                 // fallback ถ้า event_image column ยังไม่มี
-                $stmt = $pdo->prepare("INSERT INTO events (temple_id, event_name, description, event_date, event_time) VALUES (?, ?, ?, ?, ?)");
-                $stmt->execute([$admin_temple_id, $event_name_input, $description, $event_date, $event_time]);
+                $stmt = $pdo->prepare("INSERT INTO events (id, temple_id, event_name, description, event_date, event_time) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$next_event_id, $admin_temple_id, $event_name_input, $description, $event_date, $event_time]);
+            }
+            if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql') {
+                try {
+                    $pdo->exec("SELECT setval(pg_get_serial_sequence('events', 'id'), (SELECT COALESCE(MAX(id), 1) FROM events))");
+                } catch (Throwable $t) {}
             }
             $msg = 'เพิ่มกิจกรรมเรียบร้อยแล้ว';
             $msg_type = 'success';

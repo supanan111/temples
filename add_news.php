@@ -51,8 +51,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_news'])) {
     }
 
     try {
-        $stmt = $pdo->prepare("INSERT INTO news (temple_id, title, content, image) VALUES (?, ?, ?, ?)");
-        $stmt->execute([$admin_temple_id, $title, $content, $image_name]);
+        $next_news_id = (int)$pdo->query("SELECT COALESCE(MAX(id), 0) + 1 FROM news")->fetchColumn();
+        $stmt = $pdo->prepare("INSERT INTO news (id, temple_id, title, content, image) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([$next_news_id, $admin_temple_id, $title, $content, $image_name]);
         echo "<script>alert('✅ ประกาศข่าวสารเรียบร้อยแล้ว!'); window.location.href='add_news.php';</script>";
         exit();
     } catch (PDOException $e) {

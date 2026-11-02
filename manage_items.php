@@ -65,8 +65,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_item'])) {
     $price = $_POST['price']; 
     
     try {
-        $stmt = $pdo->prepare("INSERT INTO bookable_items (temple_id, item_type, item_name, total_qty, price, is_active) VALUES (:temple_id, :item_type, :item_name, :total_qty, :price, 'yes')");
-        $stmt->execute([':temple_id' => $admin_temple_id, ':item_type' => $item_type, ':item_name' => $item_name, ':total_qty' => $total_qty, ':price' => $price]);
+        $next_item_id = (int)$pdo->query("SELECT COALESCE(MAX(id), 0) + 1 FROM bookable_items")->fetchColumn();
+        $stmt = $pdo->prepare("INSERT INTO bookable_items (id, temple_id, item_type, item_name, total_qty, price, is_active) VALUES (:id, :temple_id, :item_type, :item_name, :total_qty, :price, 'yes')");
+        $stmt->execute([':id' => $next_item_id, ':temple_id' => $admin_temple_id, ':item_type' => $item_type, ':item_name' => $item_name, ':total_qty' => $total_qty, ':price' => $price]);
         echo "<script>alert('เพิ่มรายการใหม่เรียบร้อยแล้ว'); window.location.href='manage_items.php';</script>"; 
         exit();
     } catch (PDOException $e) { 
