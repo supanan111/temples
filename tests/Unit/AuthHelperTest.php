@@ -51,3 +51,4 @@ class AuthHelperTest extends TestCase
         $this->assertEquals('', safe_booking_return_target(['booking_form.php']));
     }
 }
+

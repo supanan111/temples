@@ -107,3 +107,4 @@ if ($failedCount === 0) {
     }
     exit(1);
 }
+

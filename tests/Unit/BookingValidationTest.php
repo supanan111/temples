@@ -70,3 +70,4 @@ class BookingValidationTest extends TestCase
         $this->assertFalse(in_array('deleted', $allowedStatuses, true));
     }
 }
+

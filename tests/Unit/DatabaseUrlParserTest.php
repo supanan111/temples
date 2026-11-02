@@ -74,3 +74,4 @@ class DatabaseUrlParserTest extends TestCase
         $this->assertEquals('mysql:host=mysql-host.cloud.com;port=3306;dbname=temple_platform;charset=utf8mb4', $res['dsn']);
     }
 }
+

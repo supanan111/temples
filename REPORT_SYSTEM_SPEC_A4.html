@@ -1,0 +1,1410 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เอกสารการวิเคราะห์และออกแบบระบบ - ThumWadThaiHub (A4)</title>
+    <!-- Google Font: Sarabun สำหรับเล่มรายงานวิชาการ -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'neutral',
+            flowchart: { curve: 'linear', useMaxWidth: true },
+            themeVariables: {
+                fontFamily: 'Sarabun',
+                fontSize: '13px',
+                primaryColor: '#f1f5f9',
+                primaryBorderColor: '#334155',
+                lineColor: '#1e293b'
+            }
+        });
+    </script>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 25mm 20mm 20mm 25mm; /* ขอบบน 2.5cm, ขวา 2.0cm, ล่าง 2.0cm, ซ้าย 2.5cm ตามมาตรฐานเล่มรายงาน */
+            @bottom-right {
+                content: counter(page);
+                font-family: 'Sarabun', sans-serif;
+                font-size: 11pt;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        body {
+            font-family: 'Sarabun', sans-serif;
+            font-size: 14pt;
+            line-height: 1.6;
+            color: #111827;
+            background-color: #f8fafc;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .screen-toolbar {
+            max-width: 210mm;
+            margin: 0 auto 20px auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #ffffff;
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e2e8f0;
+        }
+
+        .btn-print {
+            background-color: #0284c7;
+            color: #ffffff;
+            border: none;
+            padding: 10px 22px;
+            font-size: 14pt;
+            font-family: 'Sarabun', sans-serif;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(2, 132, 199, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-print:hover {
+            background-color: #0369a1;
+        }
+
+        /* Container สำหรับ A4 บนหน้าจอ */
+        .page {
+            max-width: 210mm;
+            margin: 0 auto 30px auto;
+            background: #ffffff;
+            padding: 25mm 20mm 20mm 25mm;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            border-radius: 2px;
+            min-height: 297mm;
+            position: relative;
+        }
+
+        /* การจัดหัวข้อตามมาตรฐานวิชาการไทย */
+        h1.chapter-title {
+            text-align: center;
+            font-size: 20pt;
+            font-weight: 700;
+            margin-top: 0;
+            margin-bottom: 24pt;
+            color: #0f172a;
+        }
+
+        h2.section-title {
+            font-size: 16pt;
+            font-weight: 700;
+            margin-top: 18pt;
+            margin-bottom: 10pt;
+            color: #0f172a;
+            border-bottom: 1.5px solid #0284c7;
+            padding-bottom: 4px;
+        }
+
+        h3.subsection-title {
+            font-size: 15pt;
+            font-weight: 600;
+            margin-top: 14pt;
+            margin-bottom: 8pt;
+            color: #1e293b;
+        }
+
+        p, li {
+            text-align: justify;
+            text-justify: inter-cluster;
+            margin-bottom: 8pt;
+        }
+
+        ul, ol {
+            padding-left: 24pt;
+            margin-top: 4pt;
+            margin-bottom: 10pt;
+        }
+
+        /* ตารางพจนานุกรมข้อมูล */
+        .table-title {
+            font-weight: 600;
+            margin-top: 14pt;
+            margin-bottom: 6pt;
+            font-size: 13pt;
+        }
+
+        table.doc-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16pt;
+            font-size: 11pt;
+            line-height: 1.4;
+        }
+
+        table.doc-table th, table.doc-table td {
+            border: 1px solid #94a3b8;
+            padding: 6px 8px;
+            vertical-align: top;
+        }
+
+        table.doc-table th {
+            background-color: #f1f5f9;
+            font-weight: 700;
+            color: #0f172a;
+            text-align: center;
+        }
+
+        table.doc-table tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        .badge-pk {
+            background-color: #fee2e2;
+            color: #991b1b;
+            font-weight: 600;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 9.5pt;
+        }
+
+        .badge-fk {
+            background-color: #e0f2fe;
+            color: #0369a1;
+            font-weight: 600;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 9.5pt;
+        }
+
+        .badge-idx {
+            background-color: #fef3c7;
+            color: #92400e;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 9.5pt;
+        }
+
+        /* Diagram Box */
+        .diagram-container {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 14px;
+            margin: 14pt 0;
+            text-align: center;
+            overflow-x: auto;
+            page-break-inside: avoid;
+        }
+
+        .diagram-caption {
+            font-size: 12pt;
+            font-weight: 600;
+            color: #334155;
+            margin-top: 8pt;
+            text-align: center;
+        }
+
+        .page-break {
+            page-break-before: always;
+            margin-top: 24pt;
+        }
+
+        @media print {
+            body {
+                background: #ffffff;
+                padding: 0;
+            }
+            .screen-toolbar {
+                display: none;
+            }
+            .page {
+                box-shadow: none;
+                margin: 0;
+                padding: 0;
+                max-width: 100%;
+                min-height: auto;
+            }
+            .page-break {
+                page-break-before: always;
+            }
+            table.doc-table {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- แถบเครื่องมือสำหรับผู้ใช้สั่งพิมพ์หรือดาวน์โหลด PDF -->
+    <div class="screen-toolbar">
+        <div>
+            <strong>📘 เอกสารรายงานฉบับสมบูรณ์ (พร้อมจัดพิมพ์ A4)</strong>
+            <div style="font-size: 11pt; color: #64748b;">กดปุ่มด้านขวา หรือกด Ctrl + P แล้วเลือก "Save as PDF" เพื่อบันทึกเป็นเล่มรายงาน</div>
+        </div>
+        <button class="btn-print" onclick="window.print()">
+            🖨️ สั่งพิมพ์ / บันทึกเป็น PDF
+        </button>
+    </div>
+
+    <div class="page">
+        <h1 class="chapter-title">บทที่ 3<br>การวิเคราะห์และออกแบบระบบ (System Analysis and Design)</h1>
+
+        <p>
+            ในบทนี้จะนำเสนอรายละเอียดการวิเคราะห์และออกแบบระบบ <strong>ThumWadThaiHub (ระบบศูนย์รวมข้อมูลและบริหารจัดการวัดไทยออนไลน์)</strong> ซึ่งประกอบไปด้วยการออกแบบสถาปัตยกรรมระบบ (System Architecture), แผนผังกระบวนการทำงานหลัก (System Flowcharts), แผนภาพความสัมพันธ์ของข้อมูล (Entity Relationship Diagram) และพจนานุกรมข้อมูล (Data Dictionary) เพื่อใช้อ้างอิงในการพัฒนาและบำรุงรักษาระบบ
+        </p>
+
+        <!-- 3.1 สถาปัตยกรรมระบบ -->
+        <h2 class="section-title">3.1 สถาปัตยกรรมระบบ (System Architecture)</h2>
+        <p>
+            ระบบถูกออกแบบตามสถาปัตยกรรม <strong>Multi-tier Web Architecture</strong> โดยแบ่งหน้าที่การทำงานออกเป็น 4 ชั้นหลักอย่างชัดเจน เพื่อความยืดหยุ่น ปลอดภัย และรองรับการขยายตัวในอนาคต รองรับการทำงานได้ทั้งบนเซิร์ฟเวอร์แบบ On-Premise/XAMPP, Docker Container (Render) และ Serverless (Vercel)
+        </p>
+
+        <div class="diagram-container">
+            <div class="mermaid">
+flowchart TB
+    subgraph ClientLayer["1. Client Presentation Layer (ผู้ใช้งาน)"]
+        Guest["ผู้เยี่ยมชมทั่วไป (Guest)"]
+        User["สมาชิก / พุทธศาสนิกชน (Member)"]
+        Admin["ผู้ดูแลวัด (Temple Admin)"]
+        SuperAdmin["ผู้ดูแลระบบหลัก (Super Admin)"]
+    end
+
+    subgraph GatewayLayer["2. Web Gateway Layer"]
+        Server["Web Server (Apache / Docker / Vercel Edge)"]
+        Security[".htaccess & Security Filters"]
+    end
+
+    subgraph AppLayer["3. Application & Business Logic Layer (PHP 8.2)"]
+        AuthM["ระบบยืนยันตัวตน & RBAC (Auth & Session)"]
+        TempleM["ระบบจัดการข้อมูลวัด (Temple Management)"]
+        BookingM["ระบบจองศาลาและอุปกรณ์ (Booking Engine)"]
+        DonationM["ระบบบริจาคและตรวจสอบสลิป (Donation & QR Engine)"]
+        NotifM["ระบบแจ้งเตือนภายใน (Notification Dispatcher)"]
+    end
+
+    subgraph DataLayer["4. Data & Storage Layer"]
+        DBConfig["db_config.php (PDO Abstraction)"]
+        DB[("Database Engine<br/>MySQL / Neon PostgreSQL")]
+        Storage["File Storage (/uploads, /donation_uploads)"]
+    end
+
+    ClientLayer --> Server
+    Server --> Security
+    Security --> AppLayer
+    AppLayer --> DBConfig
+    DBConfig --> DB
+    AppLayer --> Storage
+            </div>
+            <div class="diagram-caption">รูปที่ 3.1 แผนภาพแสดงสถาปัตยกรรมระบบ ThumWadThaiHub (System Architecture)</div>
+        </div>
+
+        <h3 class="subsection-title">3.1.1 ส่วนประกอบสำคัญของสถาปัตยกรรม</h3>
+        <ul>
+            <li><strong>Client Layer:</strong> รองรับการเข้าถึงผ่าน Web Browser ทุกแพลตฟอร์ม (Responsive Web Design) รองรับผู้ใช้ 4 กลุ่ม ได้แก่ ผู้เยี่ยมชมทั่วไป, สมาชิก, แอดมินวัด และซูเปอร์แอดมิน</li>
+            <li><strong>Application Layer:</strong> พัฒนาด้วยภาษา PHP (เวอร์ชัน 8.2 ขึ้นไป) ใช้แนวทางการจัดการเซสชัน (PHP Session Management) และการเชื่อมต่อฐานข้อมูลผ่าน PHP Data Objects (PDO)</li>
+            <li><strong>Persistence Layer:</strong> รองรับฐานข้อมูลแบบ Dual-Driver (MySQL สำหรับ On-Premise / PostgreSQL สำหรับ Cloud Serverless เช่น Neon.tech)</li>
+            <li><strong>Storage Layer:</strong> แยกส่วนจัดเก็บไฟล์อัปโหลดอย่างเป็นสัดส่วน โดยมีโฟลเดอร์สำหรับภาพทั่วไปของวัด (`uploads/`) และภาพหลักฐานสลิปการโอนเงิน (`donation_uploads/`)</li>
+        </ul>
+
+        <h3 class="subsection-title">3.1.2 ตารางกำหนดสิทธิ์การใช้งานระบบ (Role-Based Access Control - RBAC)</h3>
+        <table class="doc-table">
+            <thead>
+                <tr>
+                    <th style="width: 20%;">บทบาท (Role)</th>
+                    <th style="width: 50%;">สิทธิ์การใช้งาน (Permissions & Capabilities)</th>
+                    <th style="width: 30%;">โมดูล/หน้าจอหลัก</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>ผู้เยี่ยมชมทั่วไป (Guest)</strong></td>
+                    <td>สืบค้นข้อมูลวัดตามจังหวัดและภาค, ดูรายละเอียดกิจกรรมและข่าวสาร, สแกน QR ทำบุญ</td>
+                    <td>index.php, temple_page.php, donate.php</td>
+                </tr>
+                <tr>
+                    <td><strong>สมาชิก (Member / `user`)</strong></td>
+                    <td>จองศาลา/อุปกรณ์/นิมนต์พระสงฆ์/แผงงานวัด, อัปโหลดสลิปทำบุญ, ตรวจสอบและยกเลิกคำขอจอง, รับการแจ้งเตือน</td>
+                    <td>booking.php, my_bookings.php, check_status.php</td>
+                </tr>
+                <tr>
+                    <td><strong>ผู้ดูแลวัด (Temple Admin / `admin`)</strong></td>
+                    <td>จัดการข้อมูลวัดของตนเอง (`temple_id`), เพิ่ม/แก้ไขทรัพยากรที่เปิดให้จอง, อนุมัติ/ปฏิเสธคำขอจอง, ตรวจสอบสลิปบริจาคเงิน, เพิ่มกิจกรรมและข่าวสาร</td>
+                    <td>admin_dashboard.php, manage_bookings.php, manage_donations.php, manage_items.php</td>
+                </tr>
+                <tr>
+                    <td><strong>ผู้ดูแลระบบหลัก (`superadmin`)</strong></td>
+                    <td>จัดการรายชื่อวัดทั้งหมดในระบบ, สร้างและมอบหมายสิทธิ์แอดมินวัด, สลับมุมมองวัด (`switch_temple`), ดูสถิติรวมระดับประเทศ</td>
+                    <td>superadmin_dashboard.php, manage_temples.php, manage_users.php</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- 3.2 แผนผังกระบวนการทำงาน -->
+        <div class="page-break"></div>
+        <h2 class="section-title">3.2 แผนผังกระบวนการทำงานของระบบ (System Flowcharts)</h2>
+
+        <h3 class="subsection-title">3.2.1 กระบวนการเข้าสู่ระบบและตรวจสอบสิทธิ์ (Authentication & Role Dispatch Flow)</h3>
+        <p>
+            แสดงขั้นตอนการยืนยันตัวตนของผู้ใช้งานผ่านระบบความปลอดภัยด้วยการแฮชรหัสผ่าน (Bcrypt) และการเปลี่ยนเส้นทางไปยังหน้าการทำงานตามบทบาทของผู้ใช้
+        </p>
+
+        <div class="diagram-container">
+            <div class="mermaid">
+flowchart TD
+    Start(["เริ่มต้น"]) --> Input["ผู้ใช้กรอก Username และ Password"]
+    Input --> Query["ค้นหาข้อมูลผู้ใช้ในตาราง users"]
+    Query --> Check{"พบบัญชีผู้ใช้หรือไม่?"}
+    Check -- "ไม่พบ" --> Error["แจ้งเตือนชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"]
+    Error --> Input
+    Check -- "พบ" --> Verify{"ตรวจสอบรหัสผ่าน (password_verify)"}
+    Verify -- "รหัสผ่านไม่ถูกต้อง" --> Error
+    Verify -- "รหัสผ่านถูกต้อง" --> GenSession["สร้าง Session (user_id, role, temple_id)"]
+    GenSession --> RoleSwitch{"ตรวจสอบ Role"}
+    RoleSwitch -- "superadmin" --> SuperPage["เข้าสู่ superadmin_dashboard.php"]
+    RoleSwitch -- "admin" --> AdminPage["เข้าสู่ admin_dashboard.php"]
+    RoleSwitch -- "user" --> NextCheck{"มีหน้าปลายทางเดิมค้างอยู่?"}
+    NextCheck -- "มี (Next Target)" --> GoNext["ส่งกลับไปยังหน้าเดิม (เช่น booking_form.php)"]
+    NextCheck -- "ไม่มี" --> GoHome["เข้าสู่หน้าแรก index.php"]
+    SuperPage --> Finish(["สิ้นสุด"])
+    AdminPage --> Finish
+    GoNext --> Finish
+    GoHome --> Finish
+            </div>
+            <div class="diagram-caption">รูปที่ 3.2 แผนผังกระบวนการเข้าสู่ระบบและตรวจสอบสิทธิ์</div>
+        </div>
+
+        <div class="page-break"></div>
+        <h3 class="subsection-title">3.2.2 กระบวนการจองสิ่งของ ศาลา และสถานที่ (Booking Lifecycle Flow)</h3>
+        <p>
+            แสดงวงจรชีวิตของรายการจอง เริ่มตั้งแต่การเลือกรายการ ตรวจสอบจำนวนคงเหลือ การบันทึกคำขอ และการพิจารณาอนุมัติ/ปฏิเสธโดยผู้ดูแลวัด
+        </p>
+
+        <div class="diagram-container">
+            <div class="mermaid">
+flowchart TD
+    Start(["เริ่มต้นการจอง"]) --> SelectItem["ผู้ใช้เลือกวัด และรายการบริการ/ศาลา/อุปกรณ์"]
+    SelectItem --> CheckAuth{"เข้าสู่ระบบแล้วหรือยัง?"}
+    CheckAuth -- "ยังไม่เข้าสู่ระบบ" --> LoginPrompt["นำไปยังหน้า login.php พร้อมแนบ Return Target"]
+    LoginPrompt --> SelectItem
+    CheckAuth -- "เข้าสู่ระบบแล้ว" --> FillDetails["ระบุวันที่ จำนวนที่ต้องการ และข้อมูลติดต่อ"]
+    FillDetails --> CheckAvailability{"ตรวจสอบจำนวนคงเหลือในวันดังกล่าว"}
+    CheckAvailability -- "คิวเต็มแล้ว" --> FullNotice["แจ้งเตือน: วันดังกล่าวมีผู้จองเต็มจำนวนแล้ว"]
+    FullNotice --> FillDetails
+    CheckAvailability -- "มีคิวว่าง" --> SaveBooking["บันทึกรายการลงตาราง bookings (สถานะ pending)"]
+    SaveBooking --> CreateAdminNotice["ส่งการแจ้งเตือนไปยังแอดมินของวัด"]
+    SaveBooking --> ViewBooking["ผู้ใช้ติดตามสถานะผ่าน my_bookings.php"]
+    
+    ViewBooking --> AdminProcess{"แอดมินวัดพิจารณาคำขอ"}
+    AdminProcess -- "อนุมัติ" --> SetApproved["เปลี่ยนสถานะเป็น 'approved'"]
+    AdminProcess -- "ปฏิเสธ" --> SetRejected["เปลี่ยนสถานะเป็น 'rejected' พร้อมระบุหมายเหตุ"]
+    
+    ViewBooking --> UserCancel{"ผู้ใช้ขอยกเลิก"}
+    UserCancel -- "ยกเลิก" --> SetCancelled["เปลี่ยนสถานะเป็น 'cancelled' (cancelled_by = 'user')"]
+    
+    SetApproved --> NotifUser["ส่งการแจ้งเตือนผลถึงผู้ใช้งาน"]
+    SetRejected --> NotifUser
+    SetCancelled --> NotifAdmin["ส่งการแจ้งเตือนการยกเลิกถึงแอดมิน"]
+    NotifUser --> EndStep(["สิ้นสุด"])
+    NotifAdmin --> EndStep
+            </div>
+            <div class="diagram-caption">รูปที่ 3.3 แผนผังกระบวนการจองศาลา อุปกรณ์ และบริการ</div>
+        </div>
+
+        <div class="page-break"></div>
+        <h3 class="subsection-title">3.2.3 กระบวนการทำบุญออนไลน์และตรวจสอบสลิป (Online Donation Flow)</h3>
+        <p>
+            แสดงกระบวนการสร้าง QR Code พร้อมเพย์ตามยอดทำบุญ การอัปโหลดหลักฐานสลิปการโอนเงิน และการตรวจสอบยืนยันยอดโดยผู้ดูแลวัด
+        </p>
+
+        <div class="diagram-container">
+            <div class="mermaid">
+flowchart TD
+    Start(["เริ่มต้น"]) --> PickTemple["ผู้ใช้เลือกวัด และระบุยอดเงินทำบุญ"]
+    PickTemple --> TaxCheck{"ต้องการใบอนุโมทนาบัตรหรือไม่?"}
+    TaxCheck -- "ต้องการ" --> FillInfo["กรอกชื่อ-นามสกุล และข้อมูลผู้ขอ"]
+    TaxCheck -- "ไม่ต้องการ" --> AnonChoice{"ประสงค์ออกนามหรือไม่?"}
+    AnonChoice -- "ไม่ประสงค์ออกนาม" --> AnonName["ระบบตั้งชื่อเป็น 'ผู้ไม่ประสงค์ออกนาม'"]
+    AnonChoice -- "ออกนาม" --> FillInfo
+    
+    AnonName --> GenQR["สร้าง PromptPay QR Code จาก PromptPay ID ของวัด"]
+    FillInfo --> GenQR
+    GenQR --> Transfer["ผู้ใช้สแกนโอนเงินผ่านแอปธนาคาร"]
+    Transfer --> UploadSlip["อัปโหลดภาพหลักฐานสลิปการโอน"]
+    UploadSlip --> FileValidate{"ตรวจสอบประเภทและขนาดไฟล์"}
+    FileValidate -- "ไฟล์ไม่ถูกต้อง" --> AlertError["แจ้งเตือนข้อผิดพลาด"]
+    AlertError --> UploadSlip
+    FileValidate -- "ไฟล์สมบูรณ์" --> SaveDonation["บันทึกลงตาราง donations (สถานะ pending)"]
+    SaveDonation --> NotifyAdmin["ส่งการแจ้งเตือนไปยังแอดมินวัด"]
+    
+    NotifyAdmin --> AdminVerify{"แอดมินวัดตรวจสอบสลิป"}
+    AdminVerify -- "ถูกต้องครบถ้วน" --> SetCompleted["เปลี่ยนสถานะเป็น 'completed' และออก Receipt No."]
+    AdminVerify -- "ข้อมูลไม่ถูกต้อง" --> SetFailed["เปลี่ยนสถานะเป็น 'failed'"]
+    
+    SetCompleted --> Finish(["สิ้นสุด"])
+    SetFailed --> Finish
+            </div>
+            <div class="diagram-caption">รูปที่ 3.4 แผนผังกระบวนการทำบุญออนไลน์และตรวจสอบสลิป</div>
+        </div>
+
+        <!-- 3.3 แผนภาพความสัมพันธ์ของข้อมูล -->
+        <div class="page-break"></div>
+        <h2 class="section-title">3.3 แผนภาพความสัมพันธ์ของข้อมูล (Entity Relationship Diagram - ERD)</h2>
+        <p>
+            โครงสร้างฐานข้อมูลของระบบประกอบด้วย 9 ตาราง มีความสัมพันธ์แบบ One-to-Many ดังแสดงในแผนภาพ ER Diagram ด้านล่างนี้
+        </p>
+
+        <div class="diagram-container">
+            <div class="mermaid">
+erDiagram
+    temples ||--o{ temple_sections : "1 วัด มีได้หลาย หมวดเนื้อหา"
+    temples ||--o{ users : "1 วัด มีได้หลาย ผู้ดูแล"
+    temples ||--o{ bookable_items : "1 วัด มีได้หลาย รายการที่เปิดจอง"
+    temples ||--o{ bookings : "1 วัด มีได้หลาย รายการจอง"
+    temples ||--o{ donations : "1 วัด มีได้หลาย รายการบริจาค"
+    temples ||--o{ events : "1 วัด จัดได้หลาย กิจกรรม"
+    temples ||--o{ news : "1 วัด มีได้หลาย ข่าวประชาสัมพันธ์"
+
+    users ||--o{ bookings : "1 ผู้ใช้ ทำได้หลาย การจอง"
+    users ||--o{ notifications : "1 ผู้ใช้ ได้รับหลาย การแจ้งเตือน"
+
+    bookable_items ||--o{ bookings : "1 สิ่งของ ถูกจองได้หลาย ครั้ง"
+
+    temples {
+        int id PK
+        varchar name
+        varchar province
+        varchar district
+        text address
+        text description
+        text tags
+        decimal latitude
+        decimal longitude
+        varchar image
+        varchar promptpay_id
+        varchar badge
+        timestamp created_at
+    }
+
+    temple_sections {
+        int id PK
+        int temple_id FK
+        varchar title
+        text content
+        timestamp created_at
+    }
+
+    users {
+        int id PK
+        varchar username UK
+        varchar password
+        varchar full_name
+        varchar role
+        int temple_id FK
+        varchar profile_image
+        timestamp created_at
+    }
+
+    bookable_items {
+        int id PK
+        int temple_id FK
+        varchar item_name
+        varchar item_type
+        text description
+        decimal price
+        int total_qty
+        enum is_active
+        timestamp created_at
+    }
+
+    bookings {
+        int id PK
+        int temple_id FK
+        int item_id FK
+        int user_id FK
+        date booking_date
+        varchar stall_no
+        int qty_booked
+        enum status
+        varchar contact_name
+        varchar contact_phone
+        text admin_note
+        enum cancelled_by
+        datetime cancelled_at
+        timestamp created_at
+    }
+
+    donations {
+        int id PK
+        int temple_id FK
+        decimal amount
+        varchar donor_name
+        tinyint anonymous
+        enum tax_deduction
+        enum status
+        varchar slip_image
+        varchar receipt_no
+        timestamp created_at
+    }
+
+    events {
+        int id PK
+        int temple_id FK
+        varchar event_name
+        text description
+        varchar event_image
+        date event_date
+        time event_time
+        timestamp created_at
+    }
+
+    news {
+        int id PK
+        int temple_id FK
+        varchar title
+        text content
+        varchar image
+        timestamp created_at
+    }
+
+    notifications {
+        int id PK
+        int user_id FK
+        varchar type
+        int ref_id
+        varchar ref_table
+        text message
+        tinyint is_read
+        timestamp created_at
+    }
+            </div>
+            <div class="diagram-caption">รูปที่ 3.5 แผนภาพความสัมพันธ์ของข้อมูล (Entity Relationship Diagram)</div>
+        </div>
+
+        <!-- 3.4 พจนานุกรมข้อมูล -->
+        <div class="page-break"></div>
+        <h2 class="section-title">3.4 พจนานุกรมข้อมูล (Data Dictionary)</h2>
+        <p>
+            พจนานุกรมข้อมูลแสดงรายละเอียดโครงสร้าง ชนิดข้อมูล คีย์ และข้อจำกัดของทุกฟิลด์ในระบบฐานข้อมูล รวมทั้งสิ้น 9 ตาราง
+        </p>
+
+        <!-- 3.4.1 temples -->
+        <div class="table-title">ตารางที่ 3.1: ตาราง temples (ข้อมูลวัด)</div>
+        <table class="doc-table">
+            <thead>
+                <tr>
+                    <th style="width: 18%;">ชื่อฟิลด์</th>
+                    <th style="width: 16%;">ชนิดข้อมูล</th>
+                    <th style="width: 10%;">Null</th>
+                    <th style="width: 12%;">คีย์</th>
+                    <th style="width: 16%;">ค่าเริ่มต้น</th>
+                    <th style="width: 28%;">คำอธิบาย</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>id</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td><span class="badge-pk">PK</span></td>
+                    <td>Auto Inc</td>
+                    <td>รหัสประจำตัววัด</td>
+                </tr>
+                <tr>
+                    <td><code>name</code></td>
+                    <td>VARCHAR(150)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>ชื่อวัด</td>
+                </tr>
+                <tr>
+                    <td><code>province</code></td>
+                    <td>VARCHAR(100)</td>
+                    <td>Yes</td>
+                    <td><span class="badge-idx">Index</span></td>
+                    <td>NULL</td>
+                    <td>จังหวัดที่ตั้ง</td>
+                </tr>
+                <tr>
+                    <td><code>district</code></td>
+                    <td>VARCHAR(100)</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>อำเภอ/เขต</td>
+                </tr>
+                <tr>
+                    <td><code>address</code></td>
+                    <td>TEXT</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>ที่อยู่โดยละเอียด</td>
+                </tr>
+                <tr>
+                    <td><code>description</code></td>
+                    <td>TEXT</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>รายละเอียดและประวัติความเป็นมา</td>
+                </tr>
+                <tr>
+                    <td><code>tags</code></td>
+                    <td>TEXT</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>คำค้นหาพิเศษ (คั่นด้วย comma)</td>
+                </tr>
+                <tr>
+                    <td><code>latitude</code></td>
+                    <td>DECIMAL(10,8)</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>พิกัดละติจูด (Google Maps)</td>
+                </tr>
+                <tr>
+                    <td><code>longitude</code></td>
+                    <td>DECIMAL(11,8)</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>พิกัดลองจิจูด (Google Maps)</td>
+                </tr>
+                <tr>
+                    <td><code>image</code></td>
+                    <td>VARCHAR(255)</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>เส้นทางไฟล์ภาพหน้าปกของวัด</td>
+                </tr>
+                <tr>
+                    <td><code>promptpay_id</code></td>
+                    <td>VARCHAR(13)</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>เบอร์หรือเลขนิติบุคคลพร้อมเพย์</td>
+                </tr>
+                <tr>
+                    <td><code>badge</code></td>
+                    <td>VARCHAR(50)</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>ป้ายกำกับพิเศษประจำวัด</td>
+                </tr>
+                <tr>
+                    <td><code>created_at</code></td>
+                    <td>TIMESTAMP</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>CURRENT_TIMESTAMP</td>
+                    <td>วันเวลาที่บันทึกข้อมูล</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- 3.4.2 temple_sections -->
+        <div class="table-title">ตารางที่ 3.2: ตาราง temple_sections (หมวดหมู่ย่อยและเนื้อหาของวัด)</div>
+        <table class="doc-table">
+            <thead>
+                <tr>
+                    <th style="width: 18%;">ชื่อฟิลด์</th>
+                    <th style="width: 16%;">ชนิดข้อมูล</th>
+                    <th style="width: 10%;">Null</th>
+                    <th style="width: 12%;">คีย์</th>
+                    <th style="width: 16%;">ค่าเริ่มต้น</th>
+                    <th style="width: 28%;">คำอธิบาย</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>id</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td><span class="badge-pk">PK</span></td>
+                    <td>Auto Inc</td>
+                    <td>รหัสหมวดเนื้อหา</td>
+                </tr>
+                <tr>
+                    <td><code>temple_id</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td><span class="badge-fk">FK</span></td>
+                    <td>-</td>
+                    <td>รหัสวัดที่สังกัด (temples.id)</td>
+                </tr>
+                <tr>
+                    <td><code>title</code></td>
+                    <td>VARCHAR(255)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>หัวข้อหมวดเนื้อหา</td>
+                </tr>
+                <tr>
+                    <td><code>content</code></td>
+                    <td>TEXT</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>เนื้อหาข้อมูลโดยละเอียด</td>
+                </tr>
+                <tr>
+                    <td><code>created_at</code></td>
+                    <td>TIMESTAMP</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>CURRENT_TIMESTAMP</td>
+                    <td>วันเวลาที่เพิ่มข้อมูล</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="page-break"></div>
+
+        <!-- 3.4.3 users -->
+        <div class="table-title">ตารางที่ 3.3: ตาราง users (ผู้ใช้งานและผู้ดูแลระบบ)</div>
+        <table class="doc-table">
+            <thead>
+                <tr>
+                    <th style="width: 18%;">ชื่อฟิลด์</th>
+                    <th style="width: 16%;">ชนิดข้อมูล</th>
+                    <th style="width: 10%;">Null</th>
+                    <th style="width: 12%;">คีย์</th>
+                    <th style="width: 16%;">ค่าเริ่มต้น</th>
+                    <th style="width: 28%;">คำอธิบาย</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>id</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td><span class="badge-pk">PK</span></td>
+                    <td>Auto Inc</td>
+                    <td>รหัสผู้ใช้งาน</td>
+                </tr>
+                <tr>
+                    <td><code>username</code></td>
+                    <td>VARCHAR(50)</td>
+                    <td>No</td>
+                    <td><span class="badge-idx">Unique</span></td>
+                    <td>-</td>
+                    <td>ชื่อบัญชีผู้ใช้งาน (ไม่ซ้ำ)</td>
+                </tr>
+                <tr>
+                    <td><code>password</code></td>
+                    <td>VARCHAR(255)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>รหัสผ่าน (แฮช Bcrypt)</td>
+                </tr>
+                <tr>
+                    <td><code>full_name</code></td>
+                    <td>VARCHAR(100)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>ชื่อ-นามสกุลจริง</td>
+                </tr>
+                <tr>
+                    <td><code>role</code></td>
+                    <td>VARCHAR(20)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>'user'</td>
+                    <td>สิทธิ์ ('user','admin','superadmin')</td>
+                </tr>
+                <tr>
+                    <td><code>temple_id</code></td>
+                    <td>INT</td>
+                    <td>Yes</td>
+                    <td><span class="badge-fk">FK</span></td>
+                    <td>NULL</td>
+                    <td>รหัสวัดที่สังกัด (เฉพาะ admin)</td>
+                </tr>
+                <tr>
+                    <td><code>profile_image</code></td>
+                    <td>VARCHAR(255)</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>รูปภาพโปรไฟล์</td>
+                </tr>
+                <tr>
+                    <td><code>created_at</code></td>
+                    <td>TIMESTAMP</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>CURRENT_TIMESTAMP</td>
+                    <td>วันเวลาที่ลงทะเบียน</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- 3.4.4 bookable_items -->
+        <div class="table-title">ตารางที่ 3.4: ตาราง bookable_items (สิ่งของ/สถานที่/บริการที่เปิดให้จอง)</div>
+        <table class="doc-table">
+            <thead>
+                <tr>
+                    <th style="width: 18%;">ชื่อฟิลด์</th>
+                    <th style="width: 16%;">ชนิดข้อมูล</th>
+                    <th style="width: 10%;">Null</th>
+                    <th style="width: 12%;">คีย์</th>
+                    <th style="width: 16%;">ค่าเริ่มต้น</th>
+                    <th style="width: 28%;">คำอธิบาย</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>id</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td><span class="badge-pk">PK</span></td>
+                    <td>Auto Inc</td>
+                    <td>รหัสรายการที่เปิดจอง</td>
+                </tr>
+                <tr>
+                    <td><code>temple_id</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td><span class="badge-fk">FK</span></td>
+                    <td>-</td>
+                    <td>รหัสวัดเจ้าของรายการ</td>
+                </tr>
+                <tr>
+                    <td><code>item_name</code></td>
+                    <td>VARCHAR(150)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>ชื่อศาลา / บริการ / อุปกรณ์</td>
+                </tr>
+                <tr>
+                    <td><code>item_type</code></td>
+                    <td>VARCHAR(50)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>ประเภท: pavilion_funeral, monk, etc.</td>
+                </tr>
+                <tr>
+                    <td><code>description</code></td>
+                    <td>TEXT</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>รายละเอียดและเงื่อนไข</td>
+                </tr>
+                <tr>
+                    <td><code>price</code></td>
+                    <td>DECIMAL(10,2)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>0.00</td>
+                    <td>อัตราค่าบำรุง (บาท)</td>
+                </tr>
+                <tr>
+                    <td><code>total_qty</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>1</td>
+                    <td>จำนวนที่มีให้จองต่อวัน</td>
+                </tr>
+                <tr>
+                    <td><code>is_active</code></td>
+                    <td>ENUM('yes','no')</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>'yes'</td>
+                    <td>สถานะการเปิดให้จอง</td>
+                </tr>
+                <tr>
+                    <td><code>created_at</code></td>
+                    <td>TIMESTAMP</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>CURRENT_TIMESTAMP</td>
+                    <td>วันเวลาที่เพิ่มรายการ</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="page-break"></div>
+
+        <!-- 3.4.5 bookings -->
+        <div class="table-title">ตารางที่ 3.5: ตาราง bookings (ข้อมูลรายการจอง)</div>
+        <table class="doc-table">
+            <thead>
+                <tr>
+                    <th style="width: 18%;">ชื่อฟิลด์</th>
+                    <th style="width: 16%;">ชนิดข้อมูล</th>
+                    <th style="width: 10%;">Null</th>
+                    <th style="width: 12%;">คีย์</th>
+                    <th style="width: 16%;">ค่าเริ่มต้น</th>
+                    <th style="width: 28%;">คำอธิบาย</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>id</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td><span class="badge-pk">PK</span></td>
+                    <td>Auto Inc</td>
+                    <td>รหัสรายการจอง</td>
+                </tr>
+                <tr>
+                    <td><code>temple_id</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td><span class="badge-fk">FK</span></td>
+                    <td>-</td>
+                    <td>รหัสวัดที่ถูกจอง</td>
+                </tr>
+                <tr>
+                    <td><code>item_id</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td><span class="badge-fk">FK</span></td>
+                    <td>-</td>
+                    <td>รหัสรายการที่จอง</td>
+                </tr>
+                <tr>
+                    <td><code>user_id</code></td>
+                    <td>INT</td>
+                    <td>Yes</td>
+                    <td><span class="badge-fk">FK</span></td>
+                    <td>NULL</td>
+                    <td>รหัสผู้จอง</td>
+                </tr>
+                <tr>
+                    <td><code>booking_date</code></td>
+                    <td>DATE</td>
+                    <td>No</td>
+                    <td><span class="badge-idx">Index</span></td>
+                    <td>-</td>
+                    <td>วันที่ขอใช้บริการ</td>
+                </tr>
+                <tr>
+                    <td><code>stall_no</code></td>
+                    <td>VARCHAR(20)</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>หมายเลขแผงค้า (กรณี fair_stall)</td>
+                </tr>
+                <tr>
+                    <td><code>qty_booked</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>1</td>
+                    <td>จำนวนที่จอง</td>
+                </tr>
+                <tr>
+                    <td><code>status</code></td>
+                    <td>ENUM(...)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>'pending'</td>
+                    <td>pending, approved, rejected, etc.</td>
+                </tr>
+                <tr>
+                    <td><code>contact_name</code></td>
+                    <td>VARCHAR(100)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>ชื่อผู้ติดต่อ</td>
+                </tr>
+                <tr>
+                    <td><code>contact_phone</code></td>
+                    <td>VARCHAR(20)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>เบอร์โทรศัพท์ติดต่อ</td>
+                </tr>
+                <tr>
+                    <td><code>admin_note</code></td>
+                    <td>TEXT</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>หมายเหตุจากผู้ดูแลวัด</td>
+                </tr>
+                <tr>
+                    <td><code>cancelled_by</code></td>
+                    <td>ENUM('user','admin')</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>ผู้ที่ทำการยกเลิก</td>
+                </tr>
+                <tr>
+                    <td><code>cancelled_at</code></td>
+                    <td>DATETIME</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>วันเวลาที่ทำการยกเลิก</td>
+                </tr>
+                <tr>
+                    <td><code>created_at</code></td>
+                    <td>TIMESTAMP</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>CURRENT_TIMESTAMP</td>
+                    <td>วันเวลาที่ยื่นคำขอจอง</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- 3.4.6 donations -->
+        <div class="table-title">ตารางที่ 3.6: ตาราง donations (ข้อมูลการบริจาคและทำบุญ)</div>
+        <table class="doc-table">
+            <thead>
+                <tr>
+                    <th style="width: 18%;">ชื่อฟิลด์</th>
+                    <th style="width: 16%;">ชนิดข้อมูล</th>
+                    <th style="width: 10%;">Null</th>
+                    <th style="width: 12%;">คีย์</th>
+                    <th style="width: 16%;">ค่าเริ่มต้น</th>
+                    <th style="width: 28%;">คำอธิบาย</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>id</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td><span class="badge-pk">PK</span></td>
+                    <td>Auto Inc</td>
+                    <td>รหัสรายการบริจาค</td>
+                </tr>
+                <tr>
+                    <td><code>temple_id</code></td>
+                    <td>INT</td>
+                    <td>Yes</td>
+                    <td><span class="badge-fk">FK</span></td>
+                    <td>NULL</td>
+                    <td>รหัสวัดที่รับบริจาค</td>
+                </tr>
+                <tr>
+                    <td><code>amount</code></td>
+                    <td>DECIMAL(12,2)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>จำนวนเงินบริจาค (บาท)</td>
+                </tr>
+                <tr>
+                    <td><code>donor_name</code></td>
+                    <td>VARCHAR(100)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>'ผู้ไม่ประสงค์ออกนาม'</td>
+                    <td>ชื่อผู้ร่วมทำบุญ</td>
+                </tr>
+                <tr>
+                    <td><code>anonymous</code></td>
+                    <td>TINYINT(1)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>0</td>
+                    <td>สถานะปกปิดชื่อ (0=ออกนาม, 1=ไม่ออกนาม)</td>
+                </tr>
+                <tr>
+                    <td><code>tax_deduction</code></td>
+                    <td>ENUM('yes','no')</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>'no'</td>
+                    <td>ต้องการลดหย่อนภาษีหรือไม่</td>
+                </tr>
+                <tr>
+                    <td><code>status</code></td>
+                    <td>ENUM(...)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>'pending'</td>
+                    <td>pending, completed, failed</td>
+                </tr>
+                <tr>
+                    <td><code>slip_image</code></td>
+                    <td>VARCHAR(255)</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>เส้นทางไฟล์รูปสลิปโอนเงิน</td>
+                </tr>
+                <tr>
+                    <td><code>receipt_no</code></td>
+                    <td>VARCHAR(50)</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>เลขที่ใบเสร็จ/อนุโมทนาบัตร</td>
+                </tr>
+                <tr>
+                    <td><code>created_at</code></td>
+                    <td>TIMESTAMP</td>
+                    <td>Yes</td>
+                    <td><span class="badge-idx">Index</span></td>
+                    <td>CURRENT_TIMESTAMP</td>
+                    <td>วันเวลาที่บันทึกข้อมูล</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="page-break"></div>
+
+        <!-- 3.4.7 events -->
+        <div class="table-title">ตารางที่ 3.7: ตาราง events (กิจกรรมและงานประจำปีของวัด)</div>
+        <table class="doc-table">
+            <thead>
+                <tr>
+                    <th style="width: 18%;">ชื่อฟิลด์</th>
+                    <th style="width: 16%;">ชนิดข้อมูล</th>
+                    <th style="width: 10%;">Null</th>
+                    <th style="width: 12%;">คีย์</th>
+                    <th style="width: 16%;">ค่าเริ่มต้น</th>
+                    <th style="width: 28%;">คำอธิบาย</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>id</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td><span class="badge-pk">PK</span></td>
+                    <td>Auto Inc</td>
+                    <td>รหัสกิจกรรม</td>
+                </tr>
+                <tr>
+                    <td><code>temple_id</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td><span class="badge-fk">FK</span></td>
+                    <td>-</td>
+                    <td>รหัสวัดผู้จัดงาน</td>
+                </tr>
+                <tr>
+                    <td><code>event_name</code></td>
+                    <td>VARCHAR(200)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>ชื่องานบุญหรือกิจกรรม</td>
+                </tr>
+                <tr>
+                    <td><code>description</code></td>
+                    <td>TEXT</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>รายละเอียดและกำหนดการ</td>
+                </tr>
+                <tr>
+                    <td><code>event_image</code></td>
+                    <td>VARCHAR(255)</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>ภาพโปสเตอร์ประชาสัมพันธ์</td>
+                </tr>
+                <tr>
+                    <td><code>event_date</code></td>
+                    <td>DATE</td>
+                    <td>No</td>
+                    <td><span class="badge-idx">Index</span></td>
+                    <td>-</td>
+                    <td>วันที่จัดงาน</td>
+                </tr>
+                <tr>
+                    <td><code>event_time</code></td>
+                    <td>TIME</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>เวลาเริ่มงาน</td>
+                </tr>
+                <tr>
+                    <td><code>created_at</code></td>
+                    <td>TIMESTAMP</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>CURRENT_TIMESTAMP</td>
+                    <td>วันเวลาที่ลงข้อมูล</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- 3.4.8 news -->
+        <div class="table-title">ตารางที่ 3.8: ตาราง news (ข่าวสารประชาสัมพันธ์)</div>
+        <table class="doc-table">
+            <thead>
+                <tr>
+                    <th style="width: 18%;">ชื่อฟิลด์</th>
+                    <th style="width: 16%;">ชนิดข้อมูล</th>
+                    <th style="width: 10%;">Null</th>
+                    <th style="width: 12%;">คีย์</th>
+                    <th style="width: 16%;">ค่าเริ่มต้น</th>
+                    <th style="width: 28%;">คำอธิบาย</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>id</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td><span class="badge-pk">PK</span></td>
+                    <td>Auto Inc</td>
+                    <td>รหัสข่าวสาร</td>
+                </tr>
+                <tr>
+                    <td><code>temple_id</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td><span class="badge-fk">FK</span></td>
+                    <td>-</td>
+                    <td>รหัสวัดที่ออกข่าว</td>
+                </tr>
+                <tr>
+                    <td><code>title</code></td>
+                    <td>VARCHAR(255)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>หัวข้อข่าวสาร</td>
+                </tr>
+                <tr>
+                    <td><code>content</code></td>
+                    <td>TEXT</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>เนื้อหาข่าวประชาสัมพันธ์</td>
+                </tr>
+                <tr>
+                    <td><code>image</code></td>
+                    <td>VARCHAR(255)</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>รูปภาพประกอบข่าว</td>
+                </tr>
+                <tr>
+                    <td><code>created_at</code></td>
+                    <td>TIMESTAMP</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>CURRENT_TIMESTAMP</td>
+                    <td>วันเวลาที่เผยแพร่ข่าว</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- 3.4.9 notifications -->
+        <div class="table-title">ตารางที่ 3.9: ตาราง notifications (ระบบแจ้งเตือน)</div>
+        <table class="doc-table">
+            <thead>
+                <tr>
+                    <th style="width: 18%;">ชื่อฟิลด์</th>
+                    <th style="width: 16%;">ชนิดข้อมูล</th>
+                    <th style="width: 10%;">Null</th>
+                    <th style="width: 12%;">คีย์</th>
+                    <th style="width: 16%;">ค่าเริ่มต้น</th>
+                    <th style="width: 28%;">คำอธิบาย</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>id</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td><span class="badge-pk">PK</span></td>
+                    <td>Auto Inc</td>
+                    <td>รหัสการแจ้งเตือน</td>
+                </tr>
+                <tr>
+                    <td><code>user_id</code></td>
+                    <td>INT</td>
+                    <td>No</td>
+                    <td><span class="badge-fk">FK</span></td>
+                    <td>-</td>
+                    <td>รหัสผู้รับการแจ้งเตือน</td>
+                </tr>
+                <tr>
+                    <td><code>type</code></td>
+                    <td>VARCHAR(50)</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>ประเภท: new_booking, booking_approved, etc.</td>
+                </tr>
+                <tr>
+                    <td><code>ref_id</code></td>
+                    <td>INT</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>รหัสอ้างอิงข้อมูลที่เกี่ยวข้อง</td>
+                </tr>
+                <tr>
+                    <td><code>ref_table</code></td>
+                    <td>VARCHAR(50)</td>
+                    <td>Yes</td>
+                    <td>-</td>
+                    <td>NULL</td>
+                    <td>ชื่อตารางอ้างอิง ('bookings', 'donations')</td>
+                </tr>
+                <tr>
+                    <td><code>message</code></td>
+                    <td>TEXT</td>
+                    <td>No</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>ข้อความแจ้งเตือนที่แสดงผล</td>
+                </tr>
+                <tr>
+                    <td><code>is_read</code></td>
+                    <td>TINYINT(1)</td>
+                    <td>No</td>
+                    <td><span class="badge-idx">Index</span></td>
+                    <td>0</td>
+                    <td>สถานะการเปิดอ่าน (0=ยังไม่อ่าน, 1=อ่านแล้ว)</td>
+                </tr>
+                <tr>
+                    <td><code>created_at</code></td>
+                    <td>TIMESTAMP</td>
+                    <td>Yes</td>
+                    <td><span class="badge-idx">Index</span></td>
+                    <td>CURRENT_TIMESTAMP</td>
+                    <td>วันเวลาที่ส่งการแจ้งเตือน</td>
+                </tr>
+            </tbody>
+        </table>
+
+    </div>
+
+</body>
+</html>

@@ -82,3 +82,4 @@ class NotificationTest extends TestCase
         $this->assertEquals(2, count_unread_notifications($this->pdo, 4));
     }
 }
+

@@ -5,7 +5,7 @@
 
 CREATE TABLE IF NOT EXISTS temples (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(150) NOT NULL,
+    name VARCHAR(255) NOT NULL,
     province VARCHAR(100),
     district VARCHAR(100),
     address TEXT,
@@ -43,7 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_users_temple ON users(temple_id);
 CREATE TABLE IF NOT EXISTS bookable_items (
     id SERIAL PRIMARY KEY,
     temple_id INT NOT NULL,
-    item_name VARCHAR(150) NOT NULL,
+    item_name VARCHAR(255) NOT NULL,
     item_type VARCHAR(50) NOT NULL,
     description TEXT,
     price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
