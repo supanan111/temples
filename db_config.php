@@ -77,16 +77,11 @@ try {
     ];
     $pdo = new PDO($dsn, $user, $pass, $options);
 
-    // ซิงก์ Sequence ทั้งหมดของ PostgreSQL อัตโนมัติ เพื่อป้องกัน ID ชนหลังนำเข้าข้อมูล
+    // เคลียร์สถานะ Transaction ค้างสำหรับ PostgreSQL (PgBouncer Pooler) ให้พร้อมทำงานเสมอ
     if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql') {
-        $sync_tables = ['bookings', 'donations', 'users', 'temples', 'bookable_items', 'events', 'news', 'temple_sections', 'notifications'];
-        foreach ($sync_tables as $stbl) {
-            try {
-                $pdo->exec("SELECT setval(pg_get_serial_sequence('{$stbl}', 'id'), COALESCE((SELECT MAX(id) FROM {$stbl}), 1))");
-            } catch (Throwable $e_seq) {
-                // ข้ามหากตารางยังไม่ได้ถูกสร้าง
-            }
-        }
+        try {
+            $pdo->exec("ROLLBACK;");
+        } catch (Throwable $e) {}
     }
 } catch (PDOException $e) {
     error_log("Database connection failed: " . $e->getMessage());
