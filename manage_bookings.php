@@ -20,12 +20,53 @@ if (empty($_SESSION['delete_booking_csrf'])) {
 }
 $csrf_token = $_SESSION['delete_booking_csrf'];
 
+// จัดการการอนุมัติ/ปฏิเสธสลิปแบบด่วน (GET)
+if (isset($_GET['action'], $_GET['id']) && $_GET['action'] === 'verify_slip') {
+    $v_id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+    $v_status = ($_GET['status'] ?? '') === 'paid' ? 'paid' : 'invalid_slip';
+    $v_note = trim($_GET['note'] ?? '');
+
+    if ($v_id) {
+        $new_booking_st = ($v_status === 'paid') ? 'approved' : 'pending';
+        $note_val = $v_note ?: ($v_status === 'paid' ? 'สลิปถูกต้อง ชำระเงินแล้ว' : 'สลิปไม่ถูกต้อง กรุณาแนบใหม่');
+
+        try {
+            if ($role === 'superadmin') {
+                $stmt_v = $pdo->prepare("UPDATE bookings SET payment_status = ?, status = ?, admin_note = ? WHERE id = ?");
+                $stmt_v->execute([$v_status, $new_booking_st, $note_val, $v_id]);
+            } else {
+                $stmt_v = $pdo->prepare("UPDATE bookings SET payment_status = ?, status = ?, admin_note = ? WHERE id = ? AND temple_id = ?");
+                $stmt_v->execute([$v_status, $new_booking_st, $note_val, $v_id, $temple_id]);
+            }
+
+            if (function_exists('create_notification')) {
+                $stmt_u = $pdo->prepare("SELECT user_id FROM bookings WHERE id = ?");
+                $stmt_u->execute([$v_id]);
+                $u_id = (int)$stmt_u->fetchColumn();
+                if ($u_id > 0) {
+                    if ($v_status === 'paid') {
+                        create_notification($pdo, $u_id, 'booking_approved', (int)$v_id, 'bookings', "การชำระเงินและคำขอจอง #{$v_id} ของท่านได้รับการอนุมัติแล้ว");
+                    } else {
+                        create_notification($pdo, $u_id, 'booking_slip_invalid', (int)$v_id, 'bookings', "สลิปการจอง #{$v_id} ไม่ผ่านการอนุมัติ: {$note_val} กรุณาแนบสลิปใหม่");
+                    }
+                }
+            }
+            header("Location: manage_bookings.php?success=1");
+            exit();
+        } catch (PDOException $e) {
+            $error = "เกิดข้อผิดพลาด: " . $e->getMessage();
+        }
+    }
+}
+
 // จัดการการเปลี่ยนสถานะการจอง (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['booking_id'], $_POST['status'])) {
     $booking_id = filter_var($_POST['booking_id'] ?? '', FILTER_VALIDATE_INT);
     $new_status  = $_POST['status'];
+    $new_payment_status = $_POST['payment_status'] ?? null;
     $admin_note_input = trim((string)($_POST['admin_note'] ?? ''));
     $allowed_statuses = ['pending', 'approved', 'rejected'];
+    $allowed_payment = ['unpaid', 'pending_review', 'paid', 'invalid_slip'];
 
     if (!$booking_id || !is_string($new_status) || !in_array($new_status, $allowed_statuses, true)) {
         $error = 'ข้อมูลการอัปเดตสถานะไม่ถูกต้อง';
@@ -33,14 +74,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['booking_id'], $_POST[
         $error = 'ไม่พบข้อมูลวัดที่คุณมีสิทธิ์จัดการ';
     } else {
         try {
-            // ลอง UPDATE พร้อม admin_note ก่อน
-            if ($role === 'superadmin') {
-                $stmt_update = $pdo->prepare("UPDATE bookings SET status = ?, admin_note = ? WHERE id = ?");
-                $stmt_update->execute([$new_status, $admin_note_input ?: null, $booking_id]);
-            } else {
-                $stmt_update = $pdo->prepare("UPDATE bookings SET status = ?, admin_note = ? WHERE id = ? AND temple_id = ?");
-                $stmt_update->execute([$new_status, $admin_note_input ?: null, $booking_id, $temple_id]);
+            $update_sql = "UPDATE bookings SET status = ?, admin_note = ?";
+            $update_params = [$new_status, $admin_note_input ?: null];
+
+            if ($new_payment_status && in_array($new_payment_status, $allowed_payment, true)) {
+                $update_sql .= ", payment_status = ?";
+                $update_params[] = $new_payment_status;
             }
+
+            if ($role === 'superadmin') {
+                $update_sql .= " WHERE id = ?";
+                $update_params[] = $booking_id;
+            } else {
+                $update_sql .= " WHERE id = ? AND temple_id = ?";
+                $update_params[] = $booking_id;
+                $update_params[] = $temple_id;
+            }
+
+            $stmt_update = $pdo->prepare($update_sql);
+            $stmt_update->execute($update_params);
 
             // แจ้งเตือน user เจ้าของการจอง
             if (function_exists('create_notification')) {
@@ -50,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['booking_id'], $_POST[
                 if ($bk_user_id > 0) {
                     if ($new_status === 'approved') {
                         $ntype = 'booking_approved';
-                        $nmsg  = 'คำขอจองของคุณได้รับการอนุมัติแล้ว';
+                        $nmsg  = 'คำขอจองของคุณได้รับการอนุมัติแล้ว' . ($new_payment_status === 'paid' ? ' (ชำระเงินเรียบร้อย)' : '');
                     } elseif ($new_status === 'rejected') {
                         $ntype = 'booking_rejected';
                         $nmsg  = 'คำขอจองของคุณถูกปฏิเสธ' . ($admin_note_input ? ": $admin_note_input" : '');
@@ -65,21 +117,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['booking_id'], $_POST[
             header("Location: manage_bookings.php?success=1");
             exit();
         } catch (PDOException $e) {
-            // fallback ถ้า admin_note column ยังไม่มี (migration ยังไม่ run)
-            try {
-                if ($role === 'superadmin') {
-                    $stmt_fb = $pdo->prepare("UPDATE bookings SET status = ? WHERE id = ?");
-                    $stmt_fb->execute([$new_status, $booking_id]);
-                } else {
-                    $stmt_fb = $pdo->prepare("UPDATE bookings SET status = ? WHERE id = ? AND temple_id = ?");
-                    $stmt_fb->execute([$new_status, $booking_id, $temple_id]);
-                }
-                header("Location: manage_bookings.php?success=1");
-                exit();
-            } catch (PDOException $e2) {
-                error_log("Booking status update failed: " . $e2->getMessage());
-                $error = 'เกิดข้อผิดพลาดในการอัปเดตสถานะ กรุณาลองใหม่อีกครั้ง';
-            }
+            error_log("Booking status update failed: " . $e->getMessage());
+            $error = 'เกิดข้อผิดพลาดในการอัปเดตสถานะ: ' . $e->getMessage();
         }
     }
 }
@@ -95,9 +134,10 @@ try {
 
     // 2. ดึงข้อมูลการจองตามสิทธิ์
     if ($role === 'superadmin') {
-        $sql  = "SELECT b.*, t.name AS temple_name, u.full_name AS user_full_name
+        $sql  = "SELECT b.*, t.name AS temple_name, u.full_name AS user_full_name, i.item_name
                  FROM bookings b
                  LEFT JOIN temples t ON b.temple_id = t.id
+                 LEFT JOIN bookable_items i ON b.item_id = i.id
                  LEFT JOIN users   u ON b.user_id   = u.id
                  ORDER BY b.id DESC";
         $stmt = $pdo->query($sql);
@@ -107,9 +147,10 @@ try {
         $stmt_temple->execute([$temple_id]);
         $temple_name_display = $stmt_temple->fetchColumn() ?: 'ไม่พบข้อมูลวัด';
 
-        $sql  = "SELECT b.*, t.name AS temple_name, u.full_name AS user_full_name
+        $sql  = "SELECT b.*, t.name AS temple_name, u.full_name AS user_full_name, i.item_name
                  FROM bookings b
                  LEFT JOIN temples t ON b.temple_id = t.id
+                 LEFT JOIN bookable_items i ON b.item_id = i.id
                  LEFT JOIN users   u ON b.user_id   = u.id
                  WHERE b.temple_id = ?
                  ORDER BY b.id DESC";
@@ -129,7 +170,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>จัดการการจอง - ระบบบริหารจัดการวัด</title>
+    <title>จัดการการจองและตรวจสอบสลิป - ระบบบริหารจัดการวัด</title>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="assets/css/admin-responsive.css">
@@ -145,31 +186,38 @@ try {
             --card-bg: #FFFFFF;
             --border-color: #EAE5DE;
         }
-        body { font-family: 'Prompt', sans-serif; margin: 0; padding: 0; display: flex; background-color: var(--bg-color); color: var(--text-main); min-height: 100vh; }
-        .sidebar { width: 260px; background-color: var(--sidebar-bg); color: #EAE5DE; display: flex; flex-direction: column; box-shadow: 2px 0 10px rgba(0,0,0,0.05); }
-        .sidebar-header { padding: 25px 20px; text-align: center; background-color: #1F1A18; font-size: 15px; font-weight: 500; color: var(--primary-color); border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+        }
+
+        .sidebar { width: 260px; background-color: var(--sidebar-bg); color: #EAE5DE; display: flex; flex-direction: column; flex-shrink: 0; box-shadow: 2px 0 10px rgba(0,0,0,0.05); }
+        .sidebar-header { padding: 25px 20px; text-align: center; background-color: #1F1A18; font-size: 16px; font-weight: 500; color: var(--primary-color); border-bottom: 1px solid rgba(255,255,255,0.05); }
         .sidebar-menu { list-style: none; padding: 10px 0; margin: 0; flex-grow: 1; }
-        .sidebar-menu a { color: #BDB5AF; text-decoration: none; padding: 14px 25px; display: block; transition: 0.2s; font-size: 14px; }
+        .sidebar-menu a { color: #BDB5AF; text-decoration: none; padding: 14px 25px; display: block; transition: 0.2s; font-size: 14px; position: relative; }
         .sidebar-menu a:hover, .sidebar-menu a.active { background-color: var(--sidebar-hover); color: white; border-left: 3px solid var(--primary-color); }
         .sidebar-menu i { margin-right: 12px; width: 20px; text-align: center; opacity: 0.8; }
-        /* notification badge in sidebar */
         .notif-badge { background: #e74c3c; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
 
         .main-content { flex-grow: 1; display: flex; flex-direction: column; overflow-x: hidden; }
         .topbar { background-color: var(--card-bg); padding: 15px 35px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); font-size: 14px; }
         .user-profile-section { display: flex; align-items: center; gap: 12px; }
         .user-avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary-color); }
-        .user-info-text { display: flex; flex-direction: column; line-height: 1.2; text-align: right; }
-        .user-name { font-weight: 500; color: var(--text-main); }
+        .user-info-text { display: flex; flex-direction: column; text-align: left; }
+        .user-name { font-weight: 500; color: var(--text-main); font-size: 14px; line-height: 1.2; }
         .user-role-label { font-size: 11px; color: var(--text-muted); }
-        .profile-edit-btn { color: var(--primary-color); text-decoration: none; font-size: 12px; border: 1px solid var(--primary-color); padding: 4px 10px; border-radius: 4px; transition: 0.2s; display: inline-flex; align-items: center; gap: 4px; }
-        .profile-edit-btn:hover { background: var(--primary-color); color: white; }
-        .logout-btn { color: #C0392B; text-decoration: none; margin-left: 10px; font-weight: 500; border: 1px solid #C0392B; padding: 5px 12px; border-radius: 4px; transition: 0.2s; font-size: 12px; }
+        .profile-edit-btn { background: #FDFBF7; border: 1px solid var(--border-color); color: var(--text-main); padding: 5px 12px; border-radius: 4px; text-decoration: none; font-size: 12px; transition: 0.2s; display: inline-flex; align-items: center; gap: 5px; margin-left: 10px; }
+        .profile-edit-btn:hover { background: #EAE5DE; }
+        .logout-btn { color: #C0392B; text-decoration: none; margin-left: 10px; font-weight: 500; border: 1px solid #C0392B; padding: 5px 12px; border-radius: 4px; transition: 0.2s; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
         .logout-btn:hover { background: #C0392B; color: white; }
-        /* bell */
         .bell-btn { position: relative; background: none; border: none; cursor: pointer; font-size: 18px; color: var(--text-muted); padding: 5px 8px; }
         .bell-btn .bell-badge { position: absolute; top: 0; right: 0; background: #e74c3c; color: #fff; font-size: 10px; font-weight: 700; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
-        /* notification dropdown */
         .notif-dropdown { position: absolute; top: 60px; right: 20px; width: 340px; background: #fff; border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 999; display: none; }
         .notif-dropdown.show { display: block; }
         .notif-header { padding: 12px 16px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; font-weight: 500; font-size: 14px; }
@@ -177,33 +225,49 @@ try {
         .notif-item { padding: 12px 16px; border-bottom: 1px solid #f5f5f5; font-size: 13px; cursor: pointer; }
         .notif-item:hover { background: #fafafa; }
         .notif-item.unread { background: #FFF8EE; border-left: 3px solid var(--primary-color); }
-        .notif-item .notif-time { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
-        .notif-footer { padding: 10px 16px; text-align: center; border-top: 1px solid var(--border-color); }
-        .notif-footer a { color: var(--primary-color); text-decoration: none; font-size: 13px; }
-        .mark-all-btn { background: none; border: none; color: var(--primary-color); cursor: pointer; font-size: 12px; font-family: 'Prompt', sans-serif; }
+        .notif-time { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+        .notif-footer { padding: 10px 16px; text-align: center; border-top: 1px solid var(--border-color); font-size: 12px; }
+        .notif-footer a { color: var(--primary-color); text-decoration: none; }
+        .mark-all-btn { font-size: 11px; color: var(--primary-color); background: none; border: none; cursor: pointer; }
 
-        .content-container { padding: 35px; max-width: 1200px; margin: 0 auto; width: 100%; box-sizing: border-box; }
-        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-        .page-header h2 { margin: 0; color: var(--text-main); font-weight: 500; font-size: 24px; }
-        .page-header p { margin: 5px 0 0 0; color: var(--text-muted); font-size: 14px; }
-        .panel { background: var(--card-bg); border-radius: 8px; border: 1px solid var(--border-color); padding: 25px; }
-        table { width: 100%; border-collapse: collapse; text-align: left; }
-        th { padding: 12px; border-bottom: 2px solid #F0ECE7; color: var(--text-muted); font-weight: 500; font-size: 13px; }
-        td { padding: 12px; border-bottom: 1px solid #F0ECE7; font-size: 13px; color: var(--text-main); vertical-align: top; }
-        .badge { padding: 4px 9px; border-radius: 4px; font-size: 11px; font-weight: 500; display: inline-block; }
-        .badge-pending   { background: #FCF3CF; color: #7D6608; }
-        .badge-confirmed { background: #D4EFDF; color: #145A32; }
-        .badge-cancelled { background: #FADBD8; color: #78281F; }
-        .badge-cancelled2 { background: #F5CBA7; color: #784212; }
-        .status-form { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
-        .status-select { padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-family: 'Prompt', sans-serif; font-size: 12px; background: #FAFAFA; width: 130px; }
-        .admin-note-input { padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-family: 'Prompt', sans-serif; font-size: 11px; width: 130px; resize: vertical; min-height: 40px; }
+        .content-container { padding: 35px; max-width: 1250px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .page-header h2 { margin: 0; font-size: 22px; font-weight: 600; color: #1F1A18; }
+        .page-header p { margin: 5px 0 0; color: var(--text-muted); font-size: 14px; }
+
+        .panel { background-color: var(--card-bg); border-radius: 8px; border: 1px solid var(--border-color); box-shadow: 0 4px 6px rgba(0,0,0,0.02); overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+        th { background-color: #FAF8F5; padding: 12px 16px; border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-weight: 500; }
+        td { padding: 14px 16px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background-color: #FAF8F5; }
+
+        .badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+        .badge-pending { background-color: #FEF9E7; color: #B7950B; }
+        .badge-confirmed { background-color: #E8F8F5; color: #1E8449; }
+        .badge-cancelled { background-color: #FDEDEC; color: #C0392B; }
+        .badge-cancelled2 { background-color: #F2F3F4; color: #7F8C8D; }
+
+        .status-form { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+        .status-select { padding: 5px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-family: 'Prompt', sans-serif; font-size: 12px; width: 135px; }
+        .admin-note-input { padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-family: 'Prompt', sans-serif; font-size: 11px; width: 135px; resize: vertical; min-height: 36px; }
         .btn-row { display: flex; gap: 5px; justify-content: flex-end; }
         .btn-update { background: var(--primary-color); color: white; border: none; padding: 5px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; }
         .btn-update:hover { background: #A66E1B; }
         .btn-delete { background: #FDFBF7; color: #C0392B; border: 1px solid #C0392B; padding: 5px 10px; border-radius: 4px; font-size: 12px; text-decoration: none; display: inline-block; }
         .btn-delete:hover { background: #C0392B; color: white; }
         .booking-detail { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+
+        /* Slip Thumbnail & Modal */
+        .slip-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; cursor: pointer; transition: 0.2s; }
+        .slip-thumb:hover { transform: scale(1.08); box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+        .slip-preview-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .slip-preview-modal.active { display: flex; }
+        .slip-modal-card { background: white; border-radius: 12px; max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 24px; position: relative; text-align: center; }
+        .slip-modal-img { max-width: 100%; max-height: 55vh; object-fit: contain; border-radius: 8px; border: 1px solid #eee; margin: 15px auto; display: block; }
+        .btn-approve-slip { background: #27AE60; color: white; border: none; padding: 8px 18px; border-radius: 6px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; margin-right: 8px; text-decoration: none; display: inline-block; }
+        .btn-reject-slip { background: #C0392B; color: white; border: none; padding: 8px 18px; border-radius: 6px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
+        .close-modal-btn { position: absolute; top: 15px; right: 18px; font-size: 20px; color: #857B74; cursor: pointer; background: none; border: none; }
     </style>
 </head>
 <body>
@@ -232,6 +296,7 @@ try {
                 <li><a href="manage_events.php"><i class="fas fa-calendar-alt"></i> จัดการปฏิทินกิจกรรม</a></li>
                 <li><a href="manage_donations.php"><i class="fas fa-donate"></i> ข้อมูล E-Donation</a></li>
                 <li><a href="add_news.php"><i class="fas fa-bullhorn"></i> จัดการข่าวสาร/ประชาสัมพันธ์</a></li>
+                <li><a href="manage_temple.php"><i class="fas fa-vihara"></i> จัดการข้อมูลวัดและบัญชี</a></li>
             <?php endif; ?>
             <li><a href="edit_profile.php"><i class="fas fa-user-edit"></i> แก้ไขโปรไฟล์ส่วนตัว</a></li>
         </ul>
@@ -279,14 +344,14 @@ try {
         <div class="content-container">
             <div class="page-header">
                 <div>
-                    <h2><?php echo ($role === 'superadmin') ? 'ตรวจสอบการจองทั้งหมดในระบบ' : 'จัดการการจองของวัด'; ?></h2>
-                    <p><?php echo ($role === 'superadmin') ? 'ดูรายการจองทั้งหมดและภาพรวมการใช้งานในทุกวัด' : 'ตรวจสอบและอัปเดตสถานะการจองของผู้ใช้งานภายในวัดของคุณ'; ?></p>
+                    <h2><?php echo ($role === 'superadmin') ? 'ตรวจสอบการจองและสลิปการชำระเงินทั้งหมด' : 'จัดการการจองและตรวจสอบสลิปของวัด'; ?></h2>
+                    <p>ตรวจสอบสลิปโอนเงิน อนุมัติการชำระเงิน และอัปเดตสถานะการจองของผู้ใช้งาน</p>
                 </div>
             </div>
 
             <?php if (isset($_GET['success']) && $_GET['success'] === '1'): ?>
                 <div role="status" style="margin-bottom: 16px; padding: 12px 16px; border-radius: 6px; background: #D4EFDF; color: #145A32;">
-                    อัปเดตสถานะการจองเรียบร้อยแล้ว
+                    <i class="fas fa-check-circle mr-1"></i> อัปเดตสถานะและการตรวจสอบสลิปเรียบร้อยแล้ว
                 </div>
             <?php endif; ?>
             <?php if (!empty($error)): ?>
@@ -299,14 +364,15 @@ try {
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 55px;">ID</th>
+                            <th style="width: 50px;">ID</th>
                             <?php if ($role === 'superadmin'): ?>
                                 <th>วัดที่จอง</th>
                             <?php endif; ?>
                             <th>ผู้จอง</th>
-                            <th>วันที่ / รายละเอียด</th>
-                            <th>สถานะ</th>
-                            <th style="text-align: right; min-width: 200px;">จัดการ</th>
+                            <th>บริการ / วันที่</th>
+                            <th>การชำระเงิน & สลิป</th>
+                            <th>สถานะการจอง</th>
+                            <th style="text-align: right; min-width: 180px;">จัดการ</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -327,6 +393,11 @@ try {
                                         $status_text = 'ยกเลิก';
                                     }
                                     $is_cancelled = ($status === 'cancelled');
+
+                                    // Payment Info
+                                    $price = (float)($b['total_price'] ?? 0);
+                                    $p_status = $b['payment_status'] ?? 'unpaid';
+                                    $has_slip = !empty($b['slip_image']);
                                 ?>
                                 <tr>
                                     <td>#<?php echo $b['id']; ?></td>
@@ -336,32 +407,81 @@ try {
                                     <td>
                                         <strong><?php echo htmlspecialchars($b['contact_name'] ?? $b['user_full_name'] ?? 'ผู้ใช้งานทั่วไป'); ?></strong>
                                         <?php if (!empty($b['contact_phone'])): ?>
-                                            <br><small><?php echo htmlspecialchars($b['contact_phone']); ?></small>
+                                            <br><small><i class="fas fa-phone mr-1"></i><?php echo htmlspecialchars($b['contact_phone']); ?></small>
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <span><?php echo htmlspecialchars($b['booking_date'] ?? $b['date'] ?? 'ไม่ระบุ'); ?></span>
-                                        <?php if (!empty($b['qty_booked'])): ?>
-                                            <div class="booking-detail">จำนวน: <?php echo (int)$b['qty_booked']; ?> ล็อค</div>
+                                        <strong><?php echo htmlspecialchars($b['item_name'] ?? 'บริการ'); ?></strong>
+                                        <div class="booking-detail">
+                                            <?php echo !empty($b['stall_no']) ? 'ล็อค: ' . htmlspecialchars($b['stall_no']) : ('วันที่: ' . htmlspecialchars($b['booking_date'] ?? '')); ?>
+                                            <?php if (!empty($b['qty_booked']) && empty($b['stall_no'])): ?>
+                                                (<?php echo (int)$b['qty_booked']; ?> รายการ)
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <?php if ($price <= 0): ?>
+                                            <span class="badge" style="background:#EAECEE; color:#5D6D7E;">ฟรี (ไม่ต้องชำระ)</span>
+                                        <?php else: ?>
+                                            <strong style="color: #A06816;">฿<?php echo number_format($price, 2); ?></strong>
+                                            <div style="margin-top: 4px;">
+                                                <?php if ($p_status === 'paid'): ?>
+                                                    <span class="badge badge-confirmed"><i class="fas fa-check-circle"></i> ชำระแล้ว</span>
+                                                <?php elseif ($p_status === 'pending_review'): ?>
+                                                    <span class="badge badge-pending"><i class="fas fa-clock"></i> แนบสลิปแล้ว (รอตรวจ)</span>
+                                                <?php elseif ($p_status === 'invalid_slip'): ?>
+                                                    <span class="badge badge-cancelled"><i class="fas fa-times-circle"></i> สลิปไม่ถูกต้อง</span>
+                                                <?php else: ?>
+                                                    <span class="badge" style="background:#FADBD8; color:#78281F;"><i class="fas fa-exclamation-circle"></i> ยังไม่ชำระ</span>
+                                                <?php endif; ?>
+                                            </div>
+
+                                            <?php if ($has_slip): ?>
+                                                <div style="margin-top: 6px; display: flex; align-items: center; gap: 8px;">
+                                                    <img src="view_booking_slip.php?id=<?php echo $b['id']; ?>" 
+                                                         alt="สลิป" 
+                                                         class="slip-thumb" 
+                                                         onclick="openSlipModal(<?php echo $b['id']; ?>, 'view_booking_slip.php?id=<?php echo $b['id']; ?>', '<?php echo htmlspecialchars($b['contact_name'] ?? '', ENT_QUOTES); ?>', '<?php echo number_format($price, 2); ?>')">
+                                                    <button type="button" 
+                                                            onclick="openSlipModal(<?php echo $b['id']; ?>, 'view_booking_slip.php?id=<?php echo $b['id']; ?>', '<?php echo htmlspecialchars($b['contact_name'] ?? '', ENT_QUOTES); ?>', '<?php echo number_format($price, 2); ?>')"
+                                                            style="background:none; border:none; color:var(--primary-color); font-size:12px; cursor:pointer; text-decoration:underline; padding:0;">
+                                                        <i class="fas fa-search-plus"></i> ตรวจสอบสลิป
+                                                    </button>
+                                                </div>
+                                            <?php endif; ?>
                                         <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <span class="badge <?php echo $badge_class; ?>"><?php echo $status_text; ?></span>
                                         <?php if (!empty($b['admin_note'])): ?>
-                                            <div class="booking-detail" style="color:#8a4a00;">หมายเหตุ: <?php echo htmlspecialchars($b['admin_note']); ?></div>
+                                            <div class="booking-detail" style="color:#8a4a00;"><i class="fas fa-comment-dots"></i> <?php echo htmlspecialchars($b['admin_note']); ?></div>
                                         <?php endif; ?>
                                         <?php if (!empty($b['cancelled_by'])): ?>
                                             <div class="booking-detail" style="color:#78281F;">ยกเลิกโดย: <?php echo $b['cancelled_by'] === 'user' ? 'ผู้จอง' : 'แอดมิน'; ?></div>
                                         <?php endif; ?>
                                     </td>
-                                    <td><span class="badge <?php echo $badge_class; ?>"><?php echo $status_text; ?></span></td>
                                     <td style="text-align: right;">
                                         <?php if (!$is_cancelled): ?>
                                         <form action="manage_bookings.php" method="POST" class="status-form">
                                             <input type="hidden" name="booking_id" value="<?php echo $b['id']; ?>">
-                                            <select name="status" class="status-select">
-                                                <option value="pending"   <?php echo ($status === 'pending')   ? 'selected' : ''; ?>>รอดำเนินการ</option>
-                                                <option value="approved"  <?php echo in_array($status, ['confirmed','success','approved'], true) ? 'selected' : ''; ?>>อนุมัติ</option>
-                                                <option value="rejected"  <?php echo ($status === 'rejected')  ? 'selected' : ''; ?>>ปฏิเสธ</option>
+                                            
+                                            <select name="status" class="status-select" title="สถานะการจอง">
+                                                <option value="pending"   <?php echo ($status === 'pending')   ? 'selected' : ''; ?>>สถานะ: รอดำเนินการ</option>
+                                                <option value="approved"  <?php echo in_array($status, ['confirmed','success','approved'], true) ? 'selected' : ''; ?>>สถานะ: อนุมัติ</option>
+                                                <option value="rejected"  <?php echo ($status === 'rejected')  ? 'selected' : ''; ?>>สถานะ: ปฏิเสธ</option>
                                             </select>
-                                            <textarea name="admin_note" class="admin-note-input" placeholder="หมายเหตุ (ถ้ามี)"><?php echo htmlspecialchars($b['admin_note'] ?? ''); ?></textarea>
+
+                                            <?php if ($price > 0): ?>
+                                            <select name="payment_status" class="status-select" title="สถานะการชำระเงิน">
+                                                <option value="unpaid" <?php echo ($p_status === 'unpaid') ? 'selected' : ''; ?>>เงิน: ยังไม่ชำระ</option>
+                                                <option value="pending_review" <?php echo ($p_status === 'pending_review') ? 'selected' : ''; ?>>เงิน: รอตรวจสลิป</option>
+                                                <option value="paid" <?php echo ($p_status === 'paid') ? 'selected' : ''; ?>>เงิน: ชำระแล้ว</option>
+                                                <option value="invalid_slip" <?php echo ($p_status === 'invalid_slip') ? 'selected' : ''; ?>>เงิน: สลิปไม่ถูกต้อง</option>
+                                            </select>
+                                            <?php endif; ?>
+
+                                            <textarea name="admin_note" class="admin-note-input" placeholder="หมายเหตุถึงผู้จอง (ถ้ามี)"><?php echo htmlspecialchars($b['admin_note'] ?? ''); ?></textarea>
+                                            
                                             <div class="btn-row">
                                                 <button type="submit" class="btn-update"><i class="fas fa-check"></i> บันทึก</button>
                                                 <?php if ($role === 'superadmin'): ?>
@@ -378,9 +498,10 @@ try {
                                             <?php if ($role === 'superadmin'): ?>
                                                 <br>
                                                 <a href="delete_booking.php?id=<?php echo $b['id']; ?>&csrf=<?php echo htmlspecialchars($csrf_token); ?>"
-                                                   class="btn-delete" style="margin-top: 5px;"
+                                                   class="btn-delete"
+                                                   style="margin-top: 5px;"
                                                    onclick="return confirm('ต้องการลบรายการจองนี้ใช่หรือไม่?');">
-                                                    <i class="fas fa-trash"></i>
+                                                    <i class="fas fa-trash"></i> ลบ
                                                 </a>
                                             <?php endif; ?>
                                         <?php endif; ?>
@@ -389,8 +510,9 @@ try {
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="<?php echo ($role === 'superadmin') ? '6' : '5'; ?>" style="text-align: center; padding: 30px; color: var(--text-muted);">
-                                    ยังไม่มีรายการจองในขณะนี้
+                                <td colspan="<?php echo ($role === 'superadmin') ? '7' : '6'; ?>" style="text-align: center; color: var(--text-muted); padding: 40px;">
+                                    <i class="fas fa-calendar-times" style="font-size: 32px; margin-bottom: 10px; display: block; opacity: 0.5;"></i>
+                                    ยังไม่มีข้อมูลการจองในระบบ
                                 </td>
                             </tr>
                         <?php endif; ?>
@@ -400,7 +522,41 @@ try {
         </div>
     </div>
 
+    <!-- Slip Preview Modal -->
+    <div class="slip-preview-modal" id="slipModal" onclick="closeSlipModal(event)">
+        <div class="slip-modal-card" onclick="event.stopPropagation()">
+            <button class="close-modal-btn" onclick="closeSlipModal()"><i class="fas fa-times"></i></button>
+            <h3 style="margin: 0 0 4px; font-size: 18px; color: #2B2522;">
+                <i class="fas fa-receipt" style="color: var(--primary-color);"></i> ตรวจสอบสลิปการโอนเงิน
+            </h3>
+            <p id="modalSlipDetails" style="margin: 0; font-size: 13px; color: var(--text-muted);"></p>
+            
+            <img id="modalSlipImg" src="" alt="สลิปหลักฐานการโอน" class="slip-modal-img">
+            
+            <div style="margin-top: 15px;">
+                <a id="modalApproveBtn" href="#" class="btn-approve-slip">
+                    <i class="fas fa-check-circle"></i> อนุมัติสลิป (ชำระเงินแล้ว)
+                </a>
+                <a id="modalRejectBtn" href="#" class="btn-reject-slip">
+                    <i class="fas fa-times-circle"></i> สลิปไม่ถูกต้อง
+                </a>
+            </div>
+        </div>
+    </div>
+
 <script>
+// Slip modal inspection
+function openSlipModal(id, imgSrc, contactName, price) {
+    document.getElementById('modalSlipImg').src = imgSrc;
+    document.getElementById('modalSlipDetails').textContent = 'คำขอจอง #' + id + ' โดยคุณ ' + contactName + ' (ยอดเงิน ฿' + price + ' บาท)';
+    document.getElementById('modalApproveBtn').href = 'manage_bookings.php?action=verify_slip&id=' + id + '&status=paid';
+    document.getElementById('modalRejectBtn').href = 'manage_bookings.php?action=verify_slip&id=' + id + '&status=invalid_slip';
+    document.getElementById('slipModal').classList.add('active');
+}
+function closeSlipModal() {
+    document.getElementById('slipModal').classList.remove('active');
+}
+
 // Notification dropdown
 function toggleNotifDropdown() {
     const dd = document.getElementById('notifDropdown');

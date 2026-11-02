@@ -26,7 +26,7 @@ RUN a2enmod rewrite headers expires deflate
 COPY . /var/www/html/
 
 # สร้างโฟลเดอร์สำหรับอัปโหลดและแคช พร้อมกำหนดสิทธิ์ให้ Apache (www-data)
-RUN mkdir -p /var/www/html/uploads/events /var/www/html/donation_uploads /var/www/html/cache \
+RUN mkdir -p /var/www/html/uploads/events /var/www/html/uploads/slips /var/www/html/uploads/qrcodes /var/www/html/donation_uploads /var/www/html/cache \
     && chown -R www-data:www-data /var/www/html \
     && chmod -R 775 /var/www/html/uploads /var/www/html/donation_uploads /var/www/html/cache
 

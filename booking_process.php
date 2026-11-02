@@ -8,6 +8,8 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = (int)$_SESSION['user_id'];
+$total_booking_price = 0.0;
+$created_booking_ids = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // รับค่าจากฟอร์ม
@@ -52,7 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $stmt_details = $pdo->prepare("
-            SELECT i.item_name, t.name AS temple_name
+            SELECT i.item_name, i.price, i.item_type, t.name AS temple_name,
+                   t.bank_name, t.bank_account_no, t.bank_account_name, t.promptpay_id, t.qr_code_image
             FROM bookable_items i
             INNER JOIN temples t ON t.id = i.temple_id
             WHERE i.id = :item_id AND i.temple_id = :temple_id
@@ -67,65 +70,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             die("ไม่พบข้อมูลบริการหรือวัดที่เลือก กรุณากลับไปทำรายการใหม่");
         }
 
+        $unit_price = isset($booking_details['price']) ? (float)$booking_details['price'] : 0.0;
+
         // คำนวณ ID ถัดไปโดยตรงเพื่อการันตีว่าไม่ชนกับข้อมูลเก่าแน่นอน
         $stmt_max = $pdo->query("SELECT COALESCE(MAX(id), 0) + 1 FROM bookings");
         $next_id = (int)$stmt_max->fetchColumn();
 
         foreach ($data_array as $val) {
             $cur_booking_id = $next_id++;
+            $created_booking_ids[] = $cur_booking_id;
+
             if ($selection_type == 'stalls') {
-                // ---------------------------------------------------------
-                // กรณีจอง "ล็อคงานวัด" 
-                // นำเบอร์ล็อคไปใส่ในช่อง stall_no
-                // ส่วน booking_date ใส่วันที่ปัจจุบันไปก่อน
-                // ---------------------------------------------------------
+                $row_price = $unit_price;
+                $total_booking_price += $row_price;
+                $row_payment_status = ($row_price > 0) ? 'unpaid' : 'paid';
+
                 $stmt = $pdo->prepare("
-                    INSERT INTO bookings (id, temple_id, item_id, user_id, booking_date, stall_no, qty_booked, status, contact_name, contact_phone) 
-                    VALUES (:id, :temple_id, :item_id, :user_id, CURRENT_DATE, :stall_no, :qty_booked, :status, :contact_name, :contact_phone)
+                    INSERT INTO bookings (id, temple_id, item_id, user_id, booking_date, stall_no, qty_booked, total_price, payment_status, status, contact_name, contact_phone) 
+                    VALUES (:id, :temple_id, :item_id, :user_id, CURRENT_DATE, :stall_no, :qty_booked, :total_price, :payment_status, :status, :contact_name, :contact_phone)
                 ");
                 $stmt->execute([
                     ':id' => $cur_booking_id,
                     ':temple_id' => $temple_id,
                     ':item_id' => $item_id,
-                    ':user_id' => $_SESSION['user_id'],
-                    ':stall_no' => $val, // ใส่เบอร์ล็อค
-                    ':qty_booked' => 1,  // 1 ล็อค ต่อ 1 แถวข้อมูล
+                    ':user_id' => $user_id,
+                    ':stall_no' => $val,
+                    ':qty_booked' => 1,
+                    ':total_price' => $row_price,
+                    ':payment_status' => $row_payment_status,
                     ':status' => $status,
                     ':contact_name' => $contact_name,
                     ':contact_phone' => $contact_phone
                 ]);
 
             } else {
-                // ---------------------------------------------------------
-                // กรณีจอง "ศาลา / นิมนต์พระ / ยืมของ" 
-                // นำวันที่ไปใส่ในช่อง booking_date
-                // ---------------------------------------------------------
+                $row_price = $unit_price * max(1, (int)$qty);
+                $total_booking_price += $row_price;
+                $row_payment_status = ($row_price > 0) ? 'unpaid' : 'paid';
+
                 $stmt = $pdo->prepare("
-                    INSERT INTO bookings (id, temple_id, item_id, user_id, booking_date, qty_booked, status, contact_name, contact_phone) 
-                    VALUES (:id, :temple_id, :item_id, :user_id, :booking_date, :qty_booked, :status, :contact_name, :contact_phone)
+                    INSERT INTO bookings (id, temple_id, item_id, user_id, booking_date, qty_booked, total_price, payment_status, status, contact_name, contact_phone) 
+                    VALUES (:id, :temple_id, :item_id, :user_id, :booking_date, :qty_booked, :total_price, :payment_status, :status, :contact_name, :contact_phone)
                 ");
                 $stmt->execute([
                     ':id' => $cur_booking_id,
                     ':temple_id' => $temple_id,
                     ':item_id' => $item_id,
-                    ':user_id' => $_SESSION['user_id'],
-                    ':booking_date' => $val, // ใส่วันที่ (YYYY-MM-DD)
-                    ':qty_booked' => $qty,   // ใส่จำนวนที่ยืม
+                    ':user_id' => $user_id,
+                    ':booking_date' => $val,
+                    ':qty_booked' => $qty,
+                    ':total_price' => $row_price,
+                    ':payment_status' => $row_payment_status,
                     ':status' => $status,
                     ':contact_name' => $contact_name,
                     ':contact_phone' => $contact_phone
                 ]);
             }
         }
+
         // แจ้งเตือนแอดมินวัดและ superadmin
         if (file_exists('notify.php')) {
             require_once 'notify.php';
             $item_title = $booking_details['item_name'] ?? 'บริการ';
-            $notify_msg = "มีคำขอจองใหม่: {$item_title} โดยคุณ {$contact_name} (เบอร์โทร: {$contact_phone})";
-            notify_temple_admins($pdo, (int)$temple_id, 'new_booking', (int)$item_id, 'bookings', $notify_msg);
-            notify_superadmins($pdo, 'new_booking', (int)$item_id, 'bookings', $notify_msg);
+            $first_booking_id = $created_booking_ids[0] ?? 0;
+            $price_str = $total_booking_price > 0 ? " (ยอดเงิน: ฿" . number_format($total_booking_price, 2) . ")" : "";
+            $notify_msg = "มีคำขอจองใหม่: {$item_title}{$price_str} โดยคุณ {$contact_name} (เบอร์โทร: {$contact_phone})";
+            notify_temple_admins($pdo, (int)$temple_id, 'new_booking', (int)$first_booking_id, 'bookings', $notify_msg);
+            notify_superadmins($pdo, 'new_booking', (int)$first_booking_id, 'bookings', $notify_msg);
             if ($user_id > 0) {
-                create_notification($pdo, (int)$user_id, 'booking_created', (int)$item_id, 'bookings', "ส่งคำขอจอง {$item_title} เรียบร้อยแล้ว (สถานะ: รอตรวจสอบ)");
+                create_notification($pdo, $user_id, 'booking_created', (int)$first_booking_id, 'bookings', "ส่งคำขอจอง {$item_title} เรียบร้อยแล้ว (สถานะ: รอตรวจสอบ)");
             }
         }
 
@@ -160,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         body {
             margin: 0;
             min-height: 100vh;
-            padding: 56px 20px 72px;
+            padding: 40px 16px 60px;
             display: flex;
             justify-content: center;
             align-items: flex-start;
@@ -169,26 +182,108 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-family: 'Sarabun', sans-serif;
         }
         .confirmation { width: 100%; max-width: 760px; }
-        h1 { margin: 0 0 42px; color: #A06816; text-align: center; font-size: clamp(25px, 5vw, 36px); font-weight: 600; }
+        h1 { margin: 0 0 28px; color: #A06816; text-align: center; font-size: clamp(24px, 4vw, 32px); font-weight: 600; }
         .booking-card {
             display: flex;
             align-items: center;
-            gap: 34px;
-            min-height: 270px;
-            padding: 38px;
+            gap: 28px;
+            padding: 30px;
             border: 1px solid #EAE5DE;
             border-radius: 12px;
             background: #fff;
-            box-shadow: 0 8px 24px rgba(62, 53, 47, .10);
+            box-shadow: 0 8px 24px rgba(62, 53, 47, .08);
+            margin-bottom: 24px;
         }
-        .calendar-icon { flex: 0 0 150px; height: 135px; display: grid; place-items: center; }
-        .calendar-icon svg { display: block; width: 128px; height: 128px; }
-        .details { min-width: 0; }
-        .details h2 { margin: 0 0 4px; color: #A06816; font-size: 23px; font-weight: 600; }
-        .details p { margin: 3px 0; color: #3E352F; font-size: 18px; overflow-wrap: anywhere; }
-        .status { display: inline-flex; align-items: center; gap: 7px; margin-top: 13px; padding: 6px 12px; border-radius: 999px; background: #FBF3E5; color: #A06816; font-size: 14px; font-weight: 600; }
-        .booking-items { margin-top: 8px !important; font-size: 15px !important; }
-        .links { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+        .calendar-icon { flex: 0 0 110px; height: 100px; display: grid; place-items: center; }
+        .calendar-icon svg { display: block; width: 96px; height: 96px; }
+        .details { min-width: 0; flex: 1; }
+        .details h2 { margin: 0 0 6px; color: #A06816; font-size: 22px; font-weight: 600; }
+        .details p { margin: 4px 0; color: #3E352F; font-size: 16px; overflow-wrap: anywhere; }
+        .status { display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; padding: 5px 12px; border-radius: 999px; background: #FBF3E5; color: #A06816; font-size: 13px; font-weight: 600; }
+        .price-badge { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; margin-left: 8px; padding: 5px 12px; border-radius: 999px; background: #E8F8F5; color: #16A085; font-size: 14px; font-weight: 700; }
+
+        /* การ์ดชำระเงิน */
+        .payment-box {
+            background: #FFFFFF;
+            border: 1px solid #EAE5DE;
+            border-radius: 12px;
+            padding: 28px;
+            box-shadow: 0 8px 24px rgba(62, 53, 47, .08);
+            margin-bottom: 24px;
+        }
+        .payment-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #A06816;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #F0ECE6;
+            padding-bottom: 12px;
+        }
+        .payment-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+        .bank-info-table {
+            background: #FDFBF7;
+            border: 1px solid #EAE5DE;
+            border-radius: 8px;
+            padding: 16px;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        .bank-info-table strong { color: #2B2522; }
+        .qr-section {
+            text-align: center;
+            background: #FDFBF7;
+            border: 1px solid #EAE5DE;
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .qr-image {
+            max-width: 170px;
+            height: auto;
+            border-radius: 8px;
+            border: 1px solid #EAE5DE;
+            background: white;
+            padding: 8px;
+            margin: 0 auto 10px;
+            display: block;
+        }
+        .slip-upload-form {
+            margin-top: 20px;
+            background: #FFFDF8;
+            border: 2px dashed #C08221;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+        .slip-input {
+            margin: 12px 0;
+            font-size: 14px;
+        }
+        .btn-upload-slip {
+            background: #C08221;
+            color: white;
+            border: none;
+            padding: 10px 22px;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-upload-slip:hover { background: #A06816; }
+
+        .links { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
         .action-button {
             display: inline-flex;
             min-height: 44px;
@@ -209,15 +304,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .action-button:hover { transform: translateY(-1px); background: #FBF3E5; }
         .action-button-primary { background: #C08221; color: #fff; }
         .action-button-primary:hover { border-color: #A06816; background: #A06816; color: #fff; }
-        .action-button:focus-visible { outline: 3px solid rgba(192, 130, 33, .3); outline-offset: 2px; }
-        @media (max-width: 600px) {
-            body { padding: 32px 16px; }
-            h1 { margin-bottom: 26px; }
-            .booking-card { min-height: 0; padding: 25px 20px; flex-direction: column; gap: 12px; text-align: center; }
-            .calendar-icon { flex-basis: auto; height: 90px; }
-            .calendar-icon svg { width: 90px; height: 90px; }
-            .details h2 { font-size: 20px; }
-            .details p { font-size: 16px; }
+
+        @media (max-width: 640px) {
+            .booking-card { flex-direction: column; text-align: center; gap: 16px; padding: 20px; }
+            .calendar-icon { height: 75px; }
+            .calendar-icon svg { width: 75px; height: 75px; }
+            .payment-grid { grid-template-columns: 1fr; }
             .links { flex-direction: column; }
             .action-button { width: 100%; }
         }
@@ -226,6 +318,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <main class="confirmation">
         <h1>ส่งคำขอจองเรียบร้อยแล้ว</h1>
+
         <section class="booking-card" aria-label="รายละเอียดคำขอจอง">
             <div class="calendar-icon" aria-hidden="true">
                 <svg viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -249,12 +342,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php echo htmlspecialchars(implode(', ', $data_array), ENT_QUOTES, 'UTF-8'); ?>
                 </p>
                 <span class="status"><i class="fa-solid fa-clock"></i> รอเจ้าหน้าที่ตรวจสอบ</span>
+                <?php if ($total_booking_price > 0): ?>
+                    <span class="price-badge"><i class="fa-solid fa-coins"></i> ยอดชำระ: ฿<?php echo number_format($total_booking_price, 2); ?></span>
+                <?php else: ?>
+                    <span class="price-badge"><i class="fa-solid fa-gift"></i> ฟรี (ไม่มีค่าใช้จ่าย)</span>
+                <?php endif; ?>
             </div>
         </section>
+
+        <?php if ($total_booking_price > 0): ?>
+            <!-- กล่องข้อมูลการชำระเงินและแนบสลิป -->
+            <section class="payment-box">
+                <div class="payment-title">
+                    <i class="fa-solid fa-credit-card"></i> ช่องทางการชำระเงินของวัด
+                </div>
+
+                <div class="payment-grid">
+                    <div class="bank-info-table">
+                        <div style="margin-bottom: 8px;">
+                            <span style="color:#857B74;">ยอดที่ต้องชำระ:</span>
+                            <strong style="font-size: 20px; color:#A06816; display:block;">฿<?php echo number_format($total_booking_price, 2); ?> บาท</strong>
+                        </div>
+                        <?php if (!empty($booking_details['bank_name'])): ?>
+                            <div style="margin-top: 6px;">
+                                <strong>ธนาคาร:</strong> <?php echo htmlspecialchars($booking_details['bank_name']); ?>
+                            </div>
+                        <?php endif; ?>
+                        <?php if (!empty($booking_details['bank_account_no'])): ?>
+                            <div style="margin-top: 4px;">
+                                <strong>เลขที่บัญชี:</strong> <span style="font-size:16px; font-weight:700; color:#2C3E50;"><?php echo htmlspecialchars($booking_details['bank_account_no']); ?></span>
+                            </div>
+                        <?php endif; ?>
+                        <?php if (!empty($booking_details['bank_account_name'])): ?>
+                            <div style="margin-top: 4px;">
+                                <strong>ชื่อบัญชี:</strong> <?php echo htmlspecialchars($booking_details['bank_account_name']); ?>
+                            </div>
+                        <?php endif; ?>
+                        <?php if (!empty($booking_details['promptpay_id'])): ?>
+                            <div style="margin-top: 4px;">
+                                <strong>พร้อมเพย์ (PromptPay):</strong> <?php echo htmlspecialchars($booking_details['promptpay_id']); ?>
+                            </div>
+                        <?php endif; ?>
+                        <?php if (empty($booking_details['bank_name']) && empty($booking_details['promptpay_id'])): ?>
+                            <div style="color:#E67E22; margin-top:8px;">
+                                <i class="fa-solid fa-circle-info"></i> วัดยังไม่ได้ระบุเลขบัญชีในระบบ กรุณาติดต่อวัดโดยตรงหรือแนบสลิปหากโอนแล้ว
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="qr-section">
+                        <?php if (!empty($booking_details['qr_code_image']) && file_exists(__DIR__ . '/' . $booking_details['qr_code_image'])): ?>
+                            <img src="<?php echo htmlspecialchars($booking_details['qr_code_image']); ?>" alt="QR Code ชำระเงิน" class="qr-image">
+                            <span style="font-size: 13px; color:#857B74; display:block;">สแกน QR Code ผ่านแอปธนาคาร</span>
+                        <?php else: ?>
+                            <div style="padding: 25px 10px; color: #857B74; font-size: 13px;">
+                                <i class="fa-solid fa-qrcode fa-3x" style="opacity: 0.3; margin-bottom: 10px; display:block;"></i>
+                                โอนผ่านเลขบัญชีหรือพร้อมเพย์ด้านซ้าย
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- ฟอร์มอัปโหลดสลิป -->
+                <div class="slip-upload-form">
+                    <h3 style="margin: 0 0 8px; font-size: 16px; color: #A06816;">
+                        <i class="fa-solid fa-receipt"></i> แนบสลิปหลักฐานการโอนเงิน
+                    </h3>
+                    <p style="margin: 0 0 12px; font-size: 13px; color: #857B74;">
+                        เมื่อโอนเงินเรียบร้อยแล้ว แนบสลิปเพื่อให้เจ้าหน้าที่วัดตรวจสอบและอนุมัติการจอง
+                    </p>
+                    <form action="upload_booking_slip.php" method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="booking_ids" value="<?php echo implode(',', $created_booking_ids); ?>">
+                        <input type="hidden" name="redirect_to" value="my_bookings.php">
+                        <div>
+                            <input type="file" name="slip_image" accept="image/jpeg,image/png,image/webp" required class="slip-input">
+                        </div>
+                        <button type="submit" class="btn-upload-slip">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> อัปโหลดสลิปยืนยันการชำระเงิน
+                        </button>
+                    </form>
+                    <small style="display:block; margin-top: 10px; color: #857B74;">
+                        * หากยังไม่สะดวกแนบตอนนี้ ท่านสามารถกลับมาแนบสลิปได้ภายหลังที่เมนู <strong>"ดูรายการจองของฉัน"</strong>
+                    </small>
+                </div>
+            </section>
+        <?php endif; ?>
+
         <div class="links">
-            <?php if (($_SESSION['role'] ?? '') === 'user'): ?>
-                <a class="action-button" href="my_bookings.php"><i class="fa-solid fa-list-check"></i> ดูรายการจองของฉัน</a>
-            <?php endif; ?>
+            <a class="action-button" href="my_bookings.php"><i class="fa-solid fa-list-check"></i> ดูรายการจองของฉัน</a>
             <a class="action-button" href="temple_page.php?id=<?php echo (int)$temple_id; ?>"><i class="fa-solid fa-place-of-worship"></i> กลับไปหน้าวัด</a>
             <a class="action-button action-button-primary" href="booking.php?temple_id=<?php echo (int)$temple_id; ?>"><i class="fa-solid fa-calendar-plus"></i> จองบริการอื่น</a>
         </div>

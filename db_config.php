@@ -83,6 +83,13 @@ try {
             $pdo->exec("ROLLBACK;");
         } catch (Throwable $e) {}
     }
+
+    if (file_exists(__DIR__ . '/ensure_schema.php')) {
+        require_once __DIR__ . '/ensure_schema.php';
+        if (function_exists('ensure_payment_and_slip_schema')) {
+            ensure_payment_and_slip_schema($pdo);
+        }
+    }
 } catch (PDOException $e) {
     error_log("Database connection failed: " . $e->getMessage());
     die("ไม่สามารถเชื่อมต่อฐานข้อมูลได้: " . htmlspecialchars($e->getMessage()));

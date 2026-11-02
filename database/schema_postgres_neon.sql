@@ -14,7 +14,11 @@ CREATE TABLE IF NOT EXISTS temples (
     latitude DECIMAL(10, 8),
     longitude DECIMAL(11, 8),
     image VARCHAR(255),
-    promptpay_id VARCHAR(13),
+    bank_name VARCHAR(100),
+    bank_account_no VARCHAR(50),
+    bank_account_name VARCHAR(150),
+    promptpay_id VARCHAR(30),
+    qr_code_image VARCHAR(255),
     badge VARCHAR(50),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -61,6 +65,10 @@ CREATE TABLE IF NOT EXISTS bookings (
     booking_date DATE NOT NULL,
     stall_no VARCHAR(20),
     qty_booked INT NOT NULL DEFAULT 1,
+    total_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    payment_status VARCHAR(30) NOT NULL DEFAULT 'unpaid',
+    slip_image VARCHAR(255),
+    slip_uploaded_at TIMESTAMP WITH TIME ZONE,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
     contact_name VARCHAR(100) NOT NULL,
     contact_phone VARCHAR(20) NOT NULL,

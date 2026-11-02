@@ -46,6 +46,9 @@ try {
         $latitude_input = $_POST['latitude'] ?? '';
         $longitude_input = $_POST['longitude'] ?? '';
         $promptpay_id_input = $_POST['promptpay_id'] ?? '';
+        $bank_name_input = trim((string)($_POST['bank_name'] ?? ''));
+        $bank_account_no_input = trim((string)($_POST['bank_account_no'] ?? ''));
+        $bank_account_name_input = trim((string)($_POST['bank_account_name'] ?? ''));
         $submitted_token = $_POST['csrf_token'] ?? '';
         $submitted_sections = $_POST['sections'] ?? [];
 
@@ -76,6 +79,22 @@ try {
             $latitude = trim($latitude_input) === '' ? null : trim($latitude_input);
             $longitude = trim($longitude_input) === '' ? null : trim($longitude_input);
             $promptpay_id = trim($promptpay_id_input) === '' ? null : trim($promptpay_id_input);
+            $bank_name = $bank_name_input ?: null;
+            $bank_account_no = $bank_account_no_input ?: null;
+            $bank_account_name = $bank_account_name_input ?: null;
+            $new_qr_filename = null;
+            if (!empty($_FILES['qr_code_image']['name']) && ($_FILES['qr_code_image']['error'] ?? 1) === UPLOAD_ERR_OK) {
+                $finfo_qr = finfo_open(FILEINFO_MIME_TYPE);
+                $mime_qr = $finfo_qr ? finfo_file($finfo_qr, $_FILES['qr_code_image']['tmp_name']) : '';
+                if ($finfo_qr) finfo_close($finfo_qr);
+                $allowed_qr = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+                if (isset($allowed_qr[$mime_qr]) && ($_FILES['qr_code_image']['size'] ?? 0) <= 5 * 1024 * 1024) {
+                    $qr_dir = __DIR__ . '/uploads/qrcodes';
+                    if (!is_dir($qr_dir)) @mkdir($qr_dir, 0775, true);
+                    $new_qr_filename = 'qr_' . $temple_id . '_' . bin2hex(random_bytes(6)) . '.' . $allowed_qr[$mime_qr];
+                    move_uploaded_file($_FILES['qr_code_image']['tmp_name'], $qr_dir . '/' . $new_qr_filename);
+                }
+            }
             $clean_sections = [];
             foreach ($submitted_sections as $section) {
                 if (!is_array($section)) {
