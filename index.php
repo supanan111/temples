@@ -34,7 +34,7 @@ $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
 // แคชผลลัพธ์หน้าแรก (TTL 5 นาที) เพื่อความเร็วสูงสุด ลด Query จาก DB เมื่อผู้ใช้เข้าชมทั่วไป
 $cache_file = $cache_dir . '/temples_home_cache.json';
-$can_use_cache = (!$has_user_location && empty($search) && file_exists($cache_file) && (time() - filemtime($cache_file) < 300));
+$can_use_cache = (!$has_user_location && file_exists($cache_file) && (time() - filemtime($cache_file) < 300));
 $formatted_temples = null;
 
 if ($can_use_cache) {
@@ -46,20 +46,6 @@ if ($can_use_cache) {
 
 if ($formatted_temples === null) {
     try {
-        $search_condition = "";
-        $search_params = [];
-        if (!empty($search)) {
-            $q = '%' . $search . '%';
-            $search_condition = " WHERE (name LIKE :q1 OR province LIKE :q2 OR district LIKE :q3
-                       OR description LIKE :q4 OR tags LIKE :q5
-                       OR id IN (SELECT temple_id FROM bookable_items WHERE item_name LIKE :q6 AND is_active='yes')
-                       OR id IN (SELECT temple_id FROM events WHERE event_name LIKE :q7))";
-            $search_params = [
-                ':q1' => $q, ':q2' => $q, ':q3' => $q,
-                ':q4' => $q, ':q5' => $q, ':q6' => $q, ':q7' => $q,
-            ];
-        }
-
         if ($has_user_location) {
             $sql = "SELECT id, name, province, district, address, description, tags, latitude, longitude, image, badge, 
                     CASE
@@ -75,26 +61,17 @@ if ($formatted_temples === null) {
                         ELSE NULL
                     END AS distance
                     FROM temples
-                    $search_condition
                     ORDER BY distance IS NULL ASC, distance ASC";
             
             $stmt = $pdo->prepare($sql);
-            $stmt->execute(array_merge([
+            $stmt->execute([
                 ':user_lat_1' => $user_lat,
                 ':user_lat_2' => $user_lat,
                 ':user_lng' => $user_lng,
-            ], $search_params));
+            ]);
         } else {
-            if (!empty($search)) {
-                $sql = "SELECT id, name, province, district, address, description, tags, latitude, longitude, image, badge, NULL as distance FROM temples
-                        $search_condition
-                        ORDER BY id DESC";
-                $stmt = $pdo->prepare($sql);
-                $stmt->execute($search_params);
-            } else {
-                $sql = "SELECT id, name, province, district, address, description, tags, latitude, longitude, image, badge, NULL as distance FROM temples ORDER BY id DESC";
-                $stmt = $pdo->query($sql);
-            }
+            $sql = "SELECT id, name, province, district, address, description, tags, latitude, longitude, image, badge, NULL as distance FROM temples ORDER BY id DESC";
+            $stmt = $pdo->query($sql);
         }
 
         $temples_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -151,7 +128,7 @@ if ($formatted_temples === null) {
         }
 
         // บันทึกแคชสำหรับหน้าแรก
-        if (!$has_user_location && empty($search) && !empty($formatted_temples)) {
+        if (!$has_user_location && !empty($formatted_temples)) {
             @file_put_contents($cache_file, json_encode($formatted_temples, JSON_UNESCAPED_UNICODE));
         }
 
@@ -426,9 +403,11 @@ $json_temples_safe = htmlspecialchars(json_encode($formatted_temples, JSON_UNESC
       try {
         const rawData = document.getElementById('app-root').getAttribute('data-temples');
         this.popularTemples = JSON.parse(rawData) || [];
+        window.allTemples = this.popularTemples;
       } catch (e) {
         console.error('JSON Parse error:', e);
         this.popularTemples = [];
+        window.allTemples = [];
       }
     },
 
@@ -570,12 +549,8 @@ $json_temples_safe = htmlspecialchars(json_encode($formatted_temples, JSON_UNESC
           ค้นหาวัดที่อยู่ใกล้คุณที่สุด เพื่อความสะดวกในการทำบุญและร่วมกิจกรรมทางศาสนา
         </p>
 
-        <form action="index.php" method="GET" class="hero-search-form max-w-md mx-auto lg:mx-0 bg-white p-1.5 rounded-full flex items-center shadow-md border border-gray-100">
-          <?php if($user_lat && $user_lng): ?>
-            <input type="hidden" name="lat" value="<?php echo htmlspecialchars($user_lat, ENT_QUOTES, 'UTF-8'); ?>">
-            <input type="hidden" name="lng" value="<?php echo htmlspecialchars($user_lng, ENT_QUOTES, 'UTF-8'); ?>">
-          <?php endif; ?>
-          <input type="search" name="search" x-model.debounce.150ms="searchQuery" @input="$dispatch('temple-search-changed')" placeholder="ค้นหาชื่อวัด, จังหวัด, กิจกรรม, หรือบริการ..." value="<?php echo htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>"
+        <form @submit.prevent="const s = document.getElementById('popular-section'); if(s) s.scrollIntoView({ behavior: 'smooth' });" class="hero-search-form max-w-md mx-auto lg:mx-0 bg-white p-1.5 rounded-full flex items-center shadow-md border border-gray-100">
+          <input type="search" name="search" x-model="searchQuery" @input="$dispatch('temple-search-changed')" placeholder="พิมพ์ค้นหาชื่อวัด, จังหวัด, กิจกรรม, งานบุญ..." value="<?php echo htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>"
             class="w-full min-w-0 bg-transparent pl-3 sm:pl-4 pr-2 py-2 text-gray-800 focus:outline-none text-xs placeholder-gray-400">
           <button type="submit" class="shrink-0 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs px-4 sm:px-5 py-2.5 rounded-full flex items-center gap-1.5 transition whitespace-nowrap">
             <i class="fa-solid fa-magnifying-glass text-[11px]"></i> ค้นหา
@@ -595,12 +570,32 @@ $json_temples_safe = htmlspecialchars(json_encode($formatted_temples, JSON_UNESC
       if (this.touchEndX > this.touchStartX + 40) this.prev();
     },
     get filteredTemples() {
-      const query = (this.searchQuery || '').trim().toLocaleLowerCase();
-      if (!query) return popularTemples;
-      return popularTemples.filter((temple) =>
-        [temple.name, temple.province, temple.district, temple.tags, temple.description, temple.events, temple.items]
-          .some((value) => (value || '').toLocaleLowerCase().includes(query))
-      );
+      const query = (this.searchQuery || '').trim().toLowerCase();
+      const list = (this.popularTemples && this.popularTemples.length) ? this.popularTemples : (window.allTemples || []);
+      if (!query) return list;
+
+      const terms = query.split(/\s+/).filter(Boolean);
+      return list.filter((temple) => {
+        const combined = [
+          temple.name,
+          temple.province,
+          temple.district,
+          temple.tags,
+          temple.description,
+          temple.events,
+          temple.items
+        ].map(v => (v || '').toLowerCase()).join(' ');
+
+        return terms.every(term => {
+          if (combined.includes(term)) return true;
+          if ((term.includes('บุญ') || term === 'งานบุญ') && combined.includes('บุญ')) return true;
+          if (term.includes('กฐิน') && combined.includes('กฐิน')) return true;
+          if (term.includes('ศาลา') && combined.includes('ศาลา')) return true;
+          if (term.includes('ล็อค') && combined.includes('ล็อค')) return true;
+          if (term.includes('นิมนต์') && combined.includes('สงฆ์')) return true;
+          return false;
+        });
+      });
     },
     next() {
       const count = this.filteredTemples.length;
