@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y \
         mysqli \
         gd \
         zip \
+        calendar \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # เปิดใช้งาน Apache Rewrite Module

@@ -316,7 +316,9 @@ try {
                             </div>
                             <?php
                             for ($m = 1; $m <= 12; $m++) {
-                                $days_in_this_month = cal_days_in_month(CAL_GREGORIAN, $m, $year);
+                                $days_in_this_month = function_exists('cal_days_in_month')
+                                    ? cal_days_in_month(CAL_GREGORIAN, $m, $year)
+                                    : (int)date('t', strtotime(sprintf("%04d-%02d-01", $year, $m)));
                                 $first_day = date('w', strtotime(sprintf("%04d-%02d-01", $year, $m)));
                             ?>
                                 <div class="month-card">
