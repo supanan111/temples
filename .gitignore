@@ -1,0 +1,12 @@
+# Uploaded files
+donation_uploads/*
+!donation_uploads/.gitkeep
+uploads/events/*
+!uploads/events/.gitkeep
+
+# IDE / OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log

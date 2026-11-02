@@ -1,0 +1,99 @@
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+
+.download-soft {
+    background-size: 100% auto;   /* กว้างเต็ม แต่ไม่ยืด/ซูมสูงเกินสัดส่วนจริง */
+    background-position: center top;
+}
+
+@media (min-width: 768px) {
+    .download-soft {
+        background-size: cover;
+        background-position: center 30%; /* เลื่อนจุดโฟกัสขึ้นบนเล็กน้อยกันครอปหน้าคน/ตัวอักษรสำคัญ */
+    }
+}
+
+body {
+    font-family: 'Sarabun', sans-serif;
+    scroll-behavior: smooth;
+}
+
+/* แอนิเมชันให้บาร์ร่วงลงมาเบาๆ ตอนติดขอบ (Sticky NavBar) */
+.animate-fade-down {
+    animation: fadeDown 0.25s ease-out forwards;
+}
+
+@keyframes fadeDown {
+    from {
+        transform: translateY(-100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+/* สไตล์เสริมสำหรับคอมโพสิชันหน้าปก (ซองจดหมาย + รูปวัด + ดอกบัว) */
+.hero-cream{ background:#f7f0d8; }
+
+.composition{
+  position:relative;
+  width:100%;
+  max-width:480px;
+  aspect-ratio: 1 / 1.02;
+}
+.comp-inner{
+  position:relative;
+  width:100%;
+  height:100%;
+  opacity:0;
+  transform:translateY(64px);
+  animation: riseIn 1.05s cubic-bezier(0.16,0.9,0.28,1) 0.15s forwards;
+}
+@keyframes riseIn{ to{ opacity:1; transform:translateY(0); } }
+
+.envelope-img{
+  position:absolute;
+  left:2%;
+  top:10%;
+  width:88%;
+  filter:drop-shadow(0 22px 30px rgba(70,50,20,0.18));
+}
+.temple-frame{
+  position:absolute;
+  left:2%;
+  top:20%;
+  width:78%;
+  padding:14px 14px 34px;
+  background:#fdfcf8;
+  box-shadow:0 24px 40px rgba(60,40,10,0.22), 0 2px 6px rgba(60,40,10,0.12);
+  transform:rotate(-2.5deg);
+  border-radius:2px;
+}
+.temple-frame img{
+  display:block;
+  width:100%;
+  border:8px solid #1a1610;
+}
+
+.lotus-img{
+  position:absolute;
+  left:-13%;
+  bottom:-8%;
+  width:34%;
+  z-index:3;
+  filter:drop-shadow(0 14px 18px rgba(0,0,0,0.12));
+  opacity:0;
+  transform:translateY(50px) rotate(-6deg);
+  animation:
+    lotusIn 0.95s cubic-bezier(0.16,0.9,0.28,1) 0.55s forwards,
+    lotusFloat 5.5s ease-in-out 1.6s infinite;
+}
+@keyframes lotusIn{ to{ opacity:1; transform:translateY(0) rotate(0deg); } }
+@keyframes lotusFloat{
+  0%, 100%{ transform:translateY(0) rotate(0deg); }
+  50%{ transform:translateY(-10px) rotate(-2deg); }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .comp-inner, .lotus-img{ animation:none; opacity:1; transform:none; }
+}
+
