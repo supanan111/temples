@@ -1,3 +1,7 @@
+# Environment Variables
+.env
+.env.local
+
 # Uploaded files
 donation_uploads/*
 !donation_uploads/.gitkeep

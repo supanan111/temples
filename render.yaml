@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: thumwadthaihub
+    env: docker
+    dockerfilePath: Dockerfile
+    plan: free
+    region: singapore
+    autoDeploy: true
+    envVars:
+      - key: DB_DRIVER
+        value: mysql
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "3306"
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASS
+        sync: false
+      # หากใช้งาน Neon Database (PostgreSQL) ให้ตั้ง DATABASE_URL เพียงตัวเดียว:
+      # - key: DATABASE_URL
+      #   sync: false

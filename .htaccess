@@ -1,0 +1,41 @@
+# ============================================================
+# Apache Configuration & Security Rules (.htaccess)
+# ============================================================
+
+DirectoryIndex index.php
+
+# ตั้งค่า Charset เริ่มต้นเป็น UTF-8
+AddDefaultCharset UTF-8
+
+# 1. ป้องกันการเข้าถึงไฟล์ Sensitive และ Config จากภายนอก
+<FilesMatch "^(\.env|\.git|.*\.sql|Dockerfile|render\.yaml|vercel\.json|\.dockerignore)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 2. ป้องกันสคริปต์ Setup สิทธิ์แอดมินบน Production (อนุญาตเฉพาะ Localhost)
+<FilesMatch "^(create_admin\.php|setup_super\.php|dn_con\.php)$">
+    <IfModule mod_authz_core.c>
+        Require local
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+        Allow from 127.0.0.1 ::1
+    </IfModule>
+</FilesMatch>
+
+# 3. ป้องกันการแสดง Directory Listing
+Options -Indexes
+
+# 4. ตั้งค่า PHP Uploads (ถ้า Apache เป็น mod_php)
+<IfModule mod_php.c>
+    php_value upload_max_filesize 10M
+    php_value post_max_size 12M
+    php_value memory_limit 256M
+</IfModule>
