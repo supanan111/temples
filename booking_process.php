@@ -122,6 +122,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $notify_msg = "มีคำขอจองใหม่: {$item_title} โดยคุณ {$contact_name} (เบอร์โทร: {$contact_phone})";
             notify_temple_admins($pdo, (int)$temple_id, 'new_booking', (int)$item_id, 'bookings', $notify_msg);
             notify_superadmins($pdo, 'new_booking', (int)$item_id, 'bookings', $notify_msg);
+            if ($user_id > 0) {
+                create_notification($pdo, (int)$user_id, 'booking_created', (int)$item_id, 'bookings', "ส่งคำขอจอง {$item_title} เรียบร้อยแล้ว (สถานะ: รอตรวจสอบ)");
+            }
         }
 
     } catch (Throwable $e) {

@@ -160,6 +160,9 @@ try {
         <?php elseif (!isset($_SESSION['user_id'])): ?>
             <a href="login.php" class="login-link"><i class="fas fa-right-to-bracket"></i><span>เข้าสู่ระบบ / สมัครสมาชิก</span></a>
         <?php endif; ?>
+        <?php if (isset($_SESSION['user_id'])): ?>
+            <?php include 'user_notification_bell.php'; ?>
+        <?php endif; ?>
     </div>
 </nav>
 

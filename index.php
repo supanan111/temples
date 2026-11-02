@@ -396,40 +396,46 @@ $json_temples_safe = htmlspecialchars(json_encode($formatted_temples, JSON_UNESC
         </ul>
       </nav>
 
-      <div class="hidden md:flex items-center gap-4 text-xs font-bold uppercase tracking-widest">
-        <?php if (isset($_SESSION['user_id'])): ?>
-          <span class="normal-case tracking-normal text-gray-700 whitespace-nowrap">
-            สวัสดี, <?php echo htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['username'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
-          </span>
-        <?php endif; ?>
-        <?php if (isset($_SESSION['user_id']) && $_SESSION['role'] === 'user'): ?>
-          <a href="my_bookings.php" class="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold px-4 py-2 rounded-xl shadow-sm hover:shadow-md flex items-center gap-1.5 transition whitespace-nowrap">
-            <i class="fa-solid fa-calendar-check text-[10px]"></i> รายการจองของฉัน
-          </a>
-          <a href="check_status.php" class="border border-amber-400 text-amber-700 hover:bg-amber-50 font-bold px-3 py-2 rounded-xl transition whitespace-nowrap flex items-center gap-1.5">
-            <i class="fa-solid fa-magnifying-glass text-[10px]"></i> ตรวจสอบสถานะ
-          </a>
-        <?php elseif (isset($_SESSION['user_id'])): ?>
-          <a href="<?php echo $_SESSION['role'] === 'superadmin' ? 'superadmin_dashboard.php' : 'admin_dashboard.php'; ?>" class="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold px-4 py-2 rounded-xl shadow-sm hover:shadow-md flex items-center gap-1.5 transition whitespace-nowrap">
-            <i class="fa-solid fa-user-shield text-[10px]"></i> หน้าจัดการระบบ
-          </a>
-        <?php else: ?>
-          <a href="register.php" class="text-amber-700 font-bold px-3 py-2 rounded-xl hover:bg-amber-50 transition whitespace-nowrap">สมัครสมาชิก</a>
-          <a href="login.php" class="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold px-4 py-2 rounded-xl shadow-sm hover:shadow-md flex items-center gap-1.5 transition whitespace-nowrap">
-            <i class="fa-solid fa-user text-[10px]"></i> เข้าสู่ระบบ
-          </a>
-        <?php endif; ?>
-        <?php if (isset($_SESSION['user_id'])): ?>
-          <a href="logout.php" class="border border-red-200 text-red-600 hover:bg-red-50 font-bold px-4 py-2 rounded-xl transition whitespace-nowrap">
-            <i class="fa-solid fa-right-from-bracket text-[10px]"></i> ออกจากระบบ
-          </a>
-        <?php endif; ?>
-      </div>
+      <div class="flex items-center gap-3">
+        <div class="hidden md:flex items-center gap-4 text-xs font-bold uppercase tracking-widest">
+          <?php if (isset($_SESSION['user_id'])): ?>
+            <span class="normal-case tracking-normal text-gray-700 whitespace-nowrap">
+              สวัสดี, <?php echo htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['username'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
+            </span>
+          <?php endif; ?>
+          <?php if (isset($_SESSION['user_id']) && $_SESSION['role'] === 'user'): ?>
+            <a href="my_bookings.php" class="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold px-4 py-2 rounded-xl shadow-sm hover:shadow-md flex items-center gap-1.5 transition whitespace-nowrap">
+              <i class="fa-solid fa-calendar-check text-[10px]"></i> รายการจองของฉัน
+            </a>
+            <a href="check_status.php" class="border border-amber-400 text-amber-700 hover:bg-amber-50 font-bold px-3 py-2 rounded-xl transition whitespace-nowrap flex items-center gap-1.5">
+              <i class="fa-solid fa-magnifying-glass text-[10px]"></i> ตรวจสอบสถานะ
+            </a>
+          <?php elseif (isset($_SESSION['user_id'])): ?>
+            <a href="<?php echo $_SESSION['role'] === 'superadmin' ? 'superadmin_dashboard.php' : 'admin_dashboard.php'; ?>" class="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold px-4 py-2 rounded-xl shadow-sm hover:shadow-md flex items-center gap-1.5 transition whitespace-nowrap">
+              <i class="fa-solid fa-user-shield text-[10px]"></i> หน้าจัดการระบบ
+            </a>
+          <?php else: ?>
+            <a href="register.php" class="text-amber-700 font-bold px-3 py-2 rounded-xl hover:bg-amber-50 transition whitespace-nowrap">สมัครสมาชิก</a>
+            <a href="login.php" class="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold px-4 py-2 rounded-xl shadow-sm hover:shadow-md flex items-center gap-1.5 transition whitespace-nowrap">
+              <i class="fa-solid fa-user text-[10px]"></i> เข้าสู่ระบบ
+            </a>
+          <?php endif; ?>
+          <?php if (isset($_SESSION['user_id'])): ?>
+            <a href="logout.php" class="border border-red-200 text-red-600 hover:bg-red-50 font-bold px-4 py-2 rounded-xl transition whitespace-nowrap">
+              <i class="fa-solid fa-right-from-bracket text-[10px]"></i> ออกจากระบบ
+            </a>
+          <?php endif; ?>
+        </div>
 
-      <!-- Mobile Hamburger Button -->
-      <button @click="mobileNavOpen = !mobileNavOpen" type="button" class="md:hidden p-2 rounded-xl text-gray-700 hover:text-amber-600 hover:bg-amber-50 focus:outline-none transition" aria-label="เปิดเมนูนำทาง">
-        <i class="fa-solid" :class="mobileNavOpen ? 'fa-xmark text-lg' : 'fa-bars text-lg'"></i>
-      </button>
+        <?php if (isset($_SESSION['user_id'])): ?>
+          <?php include 'user_notification_bell.php'; ?>
+        <?php endif; ?>
+
+        <!-- Mobile Hamburger Button -->
+        <button @click="mobileNavOpen = !mobileNavOpen" type="button" class="md:hidden p-2 rounded-xl text-gray-700 hover:text-amber-600 hover:bg-amber-50 focus:outline-none transition" aria-label="เปิดเมนูนำทาง">
+          <i class="fa-solid" :class="mobileNavOpen ? 'fa-xmark text-lg' : 'fa-bars text-lg'"></i>
+        </button>
+      </div>
     </div>
     <!-- Mobile Dropdown Menu -->
     <div x-cloak x-show="mobileNavOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 -translate-y-2" class="md:hidden border-t border-gray-100 bg-white px-5 py-4 shadow-lg">

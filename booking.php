@@ -1,4 +1,5 @@
 <?php
+session_start();
 require_once 'db_config.php';
 
 $temple_id = isset($_GET['temple_id']) ? $_GET['temple_id'] : 1;
@@ -225,6 +226,11 @@ try {
 
 <nav>
     <a href="index.php" class="nav-link"><i class="fas fa-house"></i><span>กลับหน้าหลัก</span></a>
+    <?php if (isset($_SESSION['user_id'])): ?>
+        <div style="margin-left: auto;">
+            <?php include 'user_notification_bell.php'; ?>
+        </div>
+    <?php endif; ?>
 </nav>
 
 <div class="container">

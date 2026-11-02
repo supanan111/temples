@@ -1,4 +1,5 @@
 <?php
+session_start();
 require_once 'db_config.php';
 
 $phone = isset($_GET['phone']) ? trim($_GET['phone']) : '';
@@ -122,8 +123,16 @@ if ($phone !== '') {
 </head>
 <body>
 
-<nav>
+<nav style="display: flex; justify-content: space-between; align-items: center;">
     <a href="index.php" class="logo"><i class="fas fa-home"></i> กลับหน้าหลัก</a>
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <?php if (isset($_SESSION['user_id']) && $_SESSION['role'] === 'user'): ?>
+            <a href="my_bookings.php" style="color: var(--primary-color); text-decoration: none; font-size: 14px; font-weight: 600;"><i class="fas fa-calendar-check"></i> รายการจองของฉัน</a>
+        <?php endif; ?>
+        <?php if (isset($_SESSION['user_id'])): ?>
+            <?php include 'user_notification_bell.php'; ?>
+        <?php endif; ?>
+    </div>
 </nav>
 
 <div class="container">

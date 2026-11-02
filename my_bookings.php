@@ -87,7 +87,7 @@ $status_labels = [
             <i class="fa-solid fa-dharmachakra text-xl text-amber-600"></i>
             <span class="text-xs font-extrabold uppercase tracking-wider text-amber-950">ThumWadThaiHub</span>
         </a>
-        <div class="flex items-center gap-3 text-xs font-bold sm:gap-5">
+        <div class="flex items-center gap-3 text-xs font-bold sm:gap-4">
             <span class="hidden normal-case tracking-normal text-gray-600 sm:inline">
                 สวัสดี, <?php echo htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['username'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
             </span>
@@ -97,6 +97,7 @@ $status_labels = [
             <a href="index.php" class="whitespace-nowrap rounded-xl px-3 py-2 text-amber-800 transition hover:bg-amber-50">
                 <i class="fa-solid fa-house mr-1"></i> หน้าหลัก
             </a>
+            <?php include 'user_notification_bell.php'; ?>
             <a href="logout.php" class="whitespace-nowrap rounded-xl border border-red-200 px-3 py-2 text-red-600 transition hover:bg-red-50">
                 <i class="fa-solid fa-right-from-bracket mr-1"></i> ออกจากระบบ
             </a>
