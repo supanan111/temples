@@ -67,13 +67,15 @@ try {
     }
 
     $is_anonymous = ($anonymous_input === 'yes') ? 1 : 0;
+    $donation_id = (int)$pdo->query("SELECT COALESCE(MAX(id), 0) + 1 FROM donations")->fetchColumn();
     // ลอง INSERT พร้อม anonymous column
     try {
         $stmt = $pdo->prepare(
-            "INSERT INTO donations (temple_id, amount, donor_name, tax_deduction, status, anonymous)
-             VALUES (:temple_id, :amount, :donor_name, :tax_deduction, 'pending', :anonymous)"
+            "INSERT INTO donations (id, temple_id, amount, donor_name, tax_deduction, status, anonymous)
+             VALUES (:id, :temple_id, :amount, :donor_name, :tax_deduction, 'pending', :anonymous)"
         );
         $stmt->execute([
+            ':id'           => $donation_id,
             ':temple_id'    => $temple_id,
             ':amount'       => $amount,
             ':donor_name'   => $donor_name,
@@ -83,24 +85,21 @@ try {
     } catch (PDOException $e_anon) {
         // fallback ถ้า anonymous column ยังไม่มี
         $stmt = $pdo->prepare(
-            "INSERT INTO donations (temple_id, amount, donor_name, tax_deduction, status)
-             VALUES (:temple_id, :amount, :donor_name, :tax_deduction, 'pending')"
+            "INSERT INTO donations (id, temple_id, amount, donor_name, tax_deduction, status)
+             VALUES (:id, :temple_id, :amount, :donor_name, :tax_deduction, 'pending')"
         );
         $stmt->execute([
+            ':id'           => $donation_id,
             ':temple_id'    => $temple_id,
             ':amount'       => $amount,
             ':donor_name'   => $donor_name,
             ':tax_deduction'=> $tax_deduction,
         ]);
     }
-    try {
-        if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql') {
-            $donation_id = (int)$pdo->lastInsertId('donations_id_seq');
-        } else {
-            $donation_id = (int)$pdo->lastInsertId();
-        }
-    } catch (Exception $e) {
-        $donation_id = (int)$pdo->lastInsertId();
+    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql') {
+        try {
+            $pdo->exec("SELECT setval(pg_get_serial_sequence('donations', 'id'), (SELECT COALESCE(MAX(id), 1) FROM donations))");
+        } catch (Throwable $t) {}
     }
 } catch (PDOException $e) {
     error_log('Unable to create donation: ' . $e->getMessage());

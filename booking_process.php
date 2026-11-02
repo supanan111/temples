@@ -60,17 +60,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             die("ไม่พบข้อมูลบริการหรือวัดที่เลือก กรุณากลับไปทำรายการใหม่");
         }
 
-        // ซิงก์ Sequence อัตโนมัติสำหรับ PostgreSQL ก่อนเริ่ม Transaction เพื่อไม่ให้ ID ชน
-        if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql') {
-            try {
-                $pdo->exec("SELECT setval(pg_get_serial_sequence('bookings', 'id'), COALESCE((SELECT MAX(id) FROM bookings), 1))");
-            } catch (Throwable $ignoreSeq) {}
-        }
+        // คำนวณ ID ถัดไปโดยตรงเพื่อป้องกันปัญหา Sequence ใน PostgreSQL ชนกับข้อมูลเก่า
+        $stmt_max = $pdo->query("SELECT COALESCE(MAX(id), 0) + 1 FROM bookings");
+        $next_id = (int)$stmt_max->fetchColumn();
 
         // เริ่มต้น Transaction เพื่อความปลอดภัยของข้อมูล
         $pdo->beginTransaction();
 
         foreach ($data_array as $val) {
+            $cur_booking_id = $next_id++;
             if ($selection_type == 'stalls') {
                 // ---------------------------------------------------------
                 // กรณีจอง "ล็อคงานวัด" 
@@ -78,10 +76,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // ส่วน booking_date ใส่วันที่ปัจจุบัน (หรือค่าว่าง) ไปก่อนเพื่อไม่ให้ error
                 // ---------------------------------------------------------
                 $stmt = $pdo->prepare("
-                    INSERT INTO bookings (temple_id, item_id, user_id, booking_date, stall_no, qty_booked, status, contact_name, contact_phone) 
-                    VALUES (:temple_id, :item_id, :user_id, CURRENT_DATE, :stall_no, :qty_booked, :status, :contact_name, :contact_phone)
+                    INSERT INTO bookings (id, temple_id, item_id, user_id, booking_date, stall_no, qty_booked, status, contact_name, contact_phone) 
+                    VALUES (:id, :temple_id, :item_id, :user_id, CURRENT_DATE, :stall_no, :qty_booked, :status, :contact_name, :contact_phone)
                 ");
                 $stmt->execute([
+                    ':id' => $cur_booking_id,
                     ':temple_id' => $temple_id,
                     ':item_id' => $item_id,
                     ':user_id' => $_SESSION['user_id'],
@@ -98,10 +97,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // นำวันที่ไปใส่ในช่อง booking_date
                 // ---------------------------------------------------------
                 $stmt = $pdo->prepare("
-                    INSERT INTO bookings (temple_id, item_id, user_id, booking_date, qty_booked, status, contact_name, contact_phone) 
-                    VALUES (:temple_id, :item_id, :user_id, :booking_date, :qty_booked, :status, :contact_name, :contact_phone)
+                    INSERT INTO bookings (id, temple_id, item_id, user_id, booking_date, qty_booked, status, contact_name, contact_phone) 
+                    VALUES (:id, :temple_id, :item_id, :user_id, :booking_date, :qty_booked, :status, :contact_name, :contact_phone)
                 ");
                 $stmt->execute([
+                    ':id' => $cur_booking_id,
                     ':temple_id' => $temple_id,
                     ':item_id' => $item_id,
                     ':user_id' => $_SESSION['user_id'],
@@ -117,6 +117,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // ถ้าทั้งหมดสำเร็จ ให้ Commit บันทึกฐานข้อมูลถาวร
         $pdo->commit();
 
+        // อัปเดต Sequence ของ PostgreSQL ให้สอดคล้องกัน
+        if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql') {
+            try {
+                $pdo->exec("SELECT setval(pg_get_serial_sequence('bookings', 'id'), (SELECT COALESCE(MAX(id), 1) FROM bookings))");
+            } catch (Throwable $ignoreSeq) {}
+        }
         // แจ้งเตือนแอดมินวัดและ superadmin
         if (file_exists('notify.php')) {
             require_once 'notify.php';
