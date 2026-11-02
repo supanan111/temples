@@ -93,7 +93,15 @@ try {
             ':tax_deduction'=> $tax_deduction,
         ]);
     }
-    $donation_id = (int)$pdo->lastInsertId();
+    try {
+        if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql') {
+            $donation_id = (int)$pdo->lastInsertId('donations_id_seq');
+        } else {
+            $donation_id = (int)$pdo->lastInsertId();
+        }
+    } catch (Exception $e) {
+        $donation_id = (int)$pdo->lastInsertId();
+    }
 } catch (PDOException $e) {
     error_log('Unable to create donation: ' . $e->getMessage());
     donation_error('บันทึกรายการบริจาคไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', 500);

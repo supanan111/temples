@@ -46,7 +46,15 @@ try {
     $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $full_name]);
 
     session_regenerate_id(true);
-    $_SESSION['user_id'] = (int)$pdo->lastInsertId();
+    try {
+        if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql') {
+            $_SESSION['user_id'] = (int)$pdo->lastInsertId('users_id_seq');
+        } else {
+            $_SESSION['user_id'] = (int)$pdo->lastInsertId();
+        }
+    } catch (Exception $e) {
+        $_SESSION['user_id'] = (int)$pdo->lastInsertId();
+    }
     $_SESSION['username'] = $username;
     $_SESSION['full_name'] = $full_name;
     $_SESSION['role'] = 'user';

@@ -18,7 +18,7 @@ try {
     $news_list = $stmt_news->fetchAll();
 
     // ดึงกิจกรรมที่กำลังจะมาถึง
-    $stmt_events = $pdo->prepare("SELECT * FROM events WHERE temple_id = ? AND event_date >= CURDATE() ORDER BY event_date ASC LIMIT 5");
+    $stmt_events = $pdo->prepare("SELECT * FROM events WHERE temple_id = ? AND event_date >= CURRENT_DATE ORDER BY event_date ASC LIMIT 5");
     $stmt_events->execute([$id]);
     $events = $stmt_events->fetchAll();
     $custom_sections = get_temple_sections($pdo, $id);

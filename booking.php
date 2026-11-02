@@ -69,7 +69,7 @@ try {
             $stmt_bookings->execute([':item_id' => $item_id]);
             $booked_stalls = $stmt_bookings->fetchAll(PDO::FETCH_COLUMN);
         } elseif ($selected_item) {
-            $stmt_bookings = $pdo->prepare("SELECT booking_date, SUM(qty_booked) as total_booked FROM bookings WHERE item_id = :item_id AND YEAR(booking_date) = :year AND status != 'rejected' GROUP BY booking_date");
+            $stmt_bookings = $pdo->prepare("SELECT booking_date, SUM(qty_booked) as total_booked FROM bookings WHERE item_id = :item_id AND EXTRACT(YEAR FROM booking_date) = :year AND status != 'rejected' GROUP BY booking_date");
             $stmt_bookings->execute([':item_id' => $item_id, ':year' => $year]);
             while ($row = $stmt_bookings->fetch()) { 
                 $booked_days[$row['booking_date']] = $row['total_booked']; 

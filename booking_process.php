@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // ---------------------------------------------------------
                 $stmt = $pdo->prepare("
                     INSERT INTO bookings (temple_id, item_id, user_id, booking_date, stall_no, qty_booked, status, contact_name, contact_phone) 
-                    VALUES (:temple_id, :item_id, :user_id, CURDATE(), :stall_no, :qty_booked, :status, :contact_name, :contact_phone)
+                    VALUES (:temple_id, :item_id, :user_id, CURRENT_DATE, :stall_no, :qty_booked, :status, :contact_name, :contact_phone)
                 ");
                 $stmt->execute([
                     ':temple_id' => $temple_id,

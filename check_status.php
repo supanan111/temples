@@ -7,13 +7,21 @@ $bookings = [];
 if ($phone !== '') {
     try {
         // ใช้เทคนิค GROUP BY รวบข้อมูลการจองที่ทำพร้อมกัน (เวลาเดียวกัน) ให้เป็นก้อนเดียว
+        $is_pgsql = ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql');
+        $group_concat_sql = $is_pgsql 
+            ? "STRING_AGG(b.stall_no, ',' ORDER BY b.stall_no ASC)" 
+            : "GROUP_CONCAT(b.stall_no ORDER BY b.stall_no ASC)";
+        $date_format_sql = $is_pgsql 
+            ? "TO_CHAR(b.created_at, 'YYYY-MM-DD HH24:MI')" 
+            : "DATE_FORMAT(b.created_at, '%Y-%m-%d %H:%i')";
+
         $stmt = $pdo->prepare("
             SELECT 
                 b.item_id, b.status, b.contact_name, b.qty_booked,
                 MIN(b.booking_date) as start_date, 
                 MAX(b.booking_date) as end_date,
                 MIN(b.created_at) as created_at,
-                GROUP_CONCAT(b.stall_no ORDER BY b.stall_no ASC) as stall_nos,
+                {$group_concat_sql} as stall_nos,
                 COUNT(b.id) as total_items,
                 i.item_name, i.item_type, i.price,
                 t.name as temple_name, t.id as temple_id
@@ -21,7 +29,7 @@ if ($phone !== '') {
             JOIN bookable_items i ON b.item_id = i.id 
             JOIN temples t ON b.temple_id = t.id
             WHERE b.contact_phone = :phone
-            GROUP BY b.item_id, b.status, b.contact_name, DATE_FORMAT(b.created_at, '%Y-%m-%d %H:%i')
+            GROUP BY b.item_id, b.status, b.contact_name, b.qty_booked, i.item_name, i.item_type, i.price, t.name, t.id, {$date_format_sql}
             ORDER BY created_at DESC
         ");
         $stmt->execute([':phone' => $phone]);
